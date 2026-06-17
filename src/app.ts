@@ -1,6 +1,8 @@
 import express, { Router } from "express";
 import { AppError } from "./shared/appError.js";
 import { UserRoutes } from "./routes/userRoutes.js";
+import { ErrorHandler } from "./middlewares/errorHandler.js";
+import { NotFound } from "./middlewares/notFound.js";
 
 export class App {
   private _app = express();
@@ -8,7 +10,7 @@ export class App {
   constructor() {
     this._middlewares();
     this._routes();
-    this._errorHandler();
+    this._errorHandlers();
   }
 
   private _middlewares() {
@@ -17,13 +19,13 @@ export class App {
 
   private _routes() {
     const routes = Router();
-    routes.use("/users", new UserRoutes().routes);
-    routes.use("/api/v1", routes);
+    routes.use("/api/v1", new UserRoutes().routes);
     this._app.use(routes);
   }
 
-  private _errorHandler() {
-    this._app.use(AppError.errorHandler);
+  private _errorHandlers() {
+    this._app.use(NotFound.handler)
+    this._app.use(ErrorHandler.handler);
   }
 
   run(port: number, callback: () => void) {
