@@ -1,34 +1,16 @@
 import express, { Router } from "express";
 import { AppError } from "./shared/appError.js";
-import { UserRoutes } from "./routes/userRoutes.js";
-import { ErrorHandler } from "./middlewares/errorHandler.js";
-import { NotFound } from "./middlewares/notFound.js";
+import { errorHandler } from "./middlewares/errorHandler.js";
+import { notFound } from "./middlewares/notFound.js";
+import routes from "./routes/index.js";
 
-export class App {
-  private _app = express();
+const app = express();
 
-  constructor() {
-    this._middlewares();
-    this._routes();
-    this._errorHandlers();
-  }
+app.use(express.json());
 
-  private _middlewares() {
-    this._app.use(express.json());
-  }
+app.use("/api/v1", routes);
 
-  private _routes() {
-    const routes = Router();
-    routes.use("/api/v1", new UserRoutes().routes);
-    this._app.use(routes);
-  }
+app.use(notFound);
+app.use(errorHandler);
 
-  private _errorHandlers() {
-    this._app.use(NotFound.handler)
-    this._app.use(ErrorHandler.handler);
-  }
-
-  run(port: number, callback: () => void) {
-    this._app.listen(port, callback);
-  }
-}
+export default app;

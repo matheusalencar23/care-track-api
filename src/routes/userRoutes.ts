@@ -1,24 +1,11 @@
 import { Router } from "express";
 import { AppError } from "../shared/appError";
-import { UserController } from "../controllers/userController";
-import { RequestValidation } from "../middlewares/requestValidation";
+import { requestValidation } from "../middlewares/requestValidation";
 import { SignupUserSchema } from "../schemas/signupUserSchema";
+import { signup } from "../controllers/userController";
 
-export class UserRoutes {
-  private _routes: Router;
+const routes = Router();
 
-  get routes() {
-    return this._routes;
-  }
+routes.post("/", requestValidation(SignupUserSchema), signup);
 
-  constructor() {
-    this._routes = Router();
-    this._routes.use("/users", this._routes);
-
-    this._routes.post(
-      "/",
-      RequestValidation.handler(SignupUserSchema),
-      UserController.signup,
-    );
-  }
-}
+export default routes;
