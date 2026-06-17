@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { AppError } from "../shared/appError";
+import { UserController } from "../controllers/userController";
 
 export class UserRoutes {
   private _routes: Router;
@@ -12,8 +13,6 @@ export class UserRoutes {
     this._routes = Router();
     this._routes.use("/users", this._routes);
 
-    this._routes.post("/", (req, res, next) => {
-      return next(new AppError("TESTE ERRO", 404));
-    });
+    this._routes.post("/", UserController.signup);
   }
 }
