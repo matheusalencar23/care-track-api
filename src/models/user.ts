@@ -5,7 +5,7 @@ interface IUser extends Document {
   name: string;
   email: string;
   hash_password: string;
-  authenticate: (password: string) => boolean;
+  authenticate: (password: string) => Promise<boolean>;
 }
 
 const userSchema = new mongoose.Schema<IUser>({
