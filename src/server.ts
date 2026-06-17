@@ -1,7 +1,11 @@
+import { loadEnvFile } from "node:process";
+loadEnvFile(".env");
+
 import { App } from "./app.js";
+import { AppLogger } from "./shared/appLogger.js";
 
-const app = new App();
+const PORT = Number(process.env.PORT);
 
-app.run(() => {
-  console.log("Server is runnning on port 3000");
+new App().run(PORT, () => {
+  AppLogger.info(`Server is runnning on port ${PORT}`);
 });

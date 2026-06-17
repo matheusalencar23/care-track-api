@@ -1,6 +1,6 @@
-import express from "express";
-import router from "./routes/index.js";
-import { errorHandler } from "./shared/errorHandler.js";
+import express, { Router } from "express";
+import { AppError } from "./shared/appError.js";
+import { UserRoutes } from "./routes/userRoutes.js";
 
 export class App {
   private _app = express();
@@ -16,14 +16,17 @@ export class App {
   }
 
   private _routes() {
-    this._app.use("/api/v1", router);
+    const routes = Router();
+    routes.use("/users", new UserRoutes().routes);
+    routes.use("/api/v1", routes);
+    this._app.use(routes);
   }
 
   private _errorHandler() {
-    this._app.use(errorHandler);
+    this._app.use(AppError.errorHandler);
   }
 
-  run(callback: () => void) {
-    this._app.listen(3000, callback);
+  run(port: number, callback: () => void) {
+    this._app.listen(port, callback);
   }
 }
