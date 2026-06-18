@@ -1,8 +1,9 @@
 import { NextFunction, Request, Response } from "express";
 import User from "../models/user";
-import { AppError } from "../shared/appError";
 import { AppLogger } from "../shared/appLogger";
 import { generateToken } from "../utils/tokenUtils";
+import { BadRequestException } from "../shared/exceptions/badRequestError";
+import { HttpException } from "../shared/exceptions/httpException";
 
 export const signup = async (
   req: Request,
@@ -10,13 +11,13 @@ export const signup = async (
   next: NextFunction,
 ) => {
   const { name, email, password } = req.body;
-  AppLogger.info(`Start saving user {name=${name}, email=${email}}`);
+  AppLogger.info(`Create user {name=${name}, email=${email}}`);
 
   try {
     const userAlreadyExists = await User.findOne({ email });
 
     if (userAlreadyExists) {
-      return next(new AppError("User already exists", 400));
+      return next(new BadRequestException("User already exists"));
     }
 
     const _user = new User({
@@ -27,15 +28,14 @@ export const signup = async (
 
     await _user.save();
 
+    AppLogger.info(`User created successfully`);
     res.status(201).json({
       name,
       email,
     });
-
-    AppLogger.info(`User save successfully`);
   } catch (err) {
-    AppLogger.error(`Error while saving the user: ${err}}`);
-    return next(new AppError("Error while saving the user", 500));
+    AppLogger.error(`Error creating user: ${err}}`);
+    return next(new HttpException("Internal Server Error", 500, null));
   }
 };
 
@@ -50,13 +50,13 @@ export const signin = async (
     const user = await User.findOne({ email });
 
     if (!user) {
-      return next(new AppError("Invalid credentials", 400));
+      return next(new BadRequestException("Invalid credentials"));
     }
 
     const isPasswordMatched = await user.authenticate(password);
 
     if (!isPasswordMatched) {
-      return next(new AppError("Invalid credentials", 400));
+      return next(new BadRequestException("Invalid credentials"));
     }
 
     const token = generateToken({ _id: user._id });
@@ -66,6 +66,6 @@ export const signin = async (
     });
   } catch (err) {
     AppLogger.error(`Error logging in: ${err}}`);
-    return next(new AppError("Error logging in", 500));
+    return next(new HttpException("Internal Server Error", 500, null));
   }
 };

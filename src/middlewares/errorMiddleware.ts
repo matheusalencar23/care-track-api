@@ -1,15 +1,14 @@
-import { ErrorRequestHandler, NextFunction, Request, Response } from "express";
-import { AppError } from "../shared/appError";
+import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../shared/appLogger";
-import { ValidationError } from "../shared/validationError";
+import { HttpException } from "../shared/exceptions/httpException";
 
-export const errorHandler = (
+export const errorMiddleware = (
   err: unknown,
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  if (err instanceof AppError) {
+  if (err instanceof HttpException) {
     AppLogger.error(`${err.statusCode} - ${err.message}`);
     return res.status(err.statusCode).json(err.toJson());
   }

@@ -4,8 +4,7 @@ loadEnvFile(".env");
 import { AppLogger } from "./shared/appLogger.js";
 import { connectDb } from "./db/db.js";
 import app from "./app.js";
-
-const PORT = Number(process.env.PORT);
+import { PORT } from "./config/secrets.js";
 
 const bootstrap = async () => {
   try {

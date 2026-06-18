@@ -1,12 +1,22 @@
 import jwt from "jsonwebtoken";
-import { JwtUserPayload } from "../models/jwtuserpayload";
+import { JwtUserPayload } from "../models/jwtUserPayload";
+import { UnauthorizedException } from "../shared/exceptions/unauthorizedException";
+import { JWT_SECRET } from "../config/secrets";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "";
-
-export const generateToken = (body: Record<string, any>) =>
-  jwt.sign(body, JWT_SECRET, {
+export const generateToken = (body: Record<string, any>) => {
+  return jwt.sign(body, JWT_SECRET, {
     expiresIn: "15m",
   });
+};
 
-export const verifyToken = (token: string): JwtUserPayload =>
-  jwt.verify(token, JWT_SECRET) as JwtUserPayload;
+export const verifyToken = (token: string): JwtUserPayload => {
+  try {
+    return jwt.verify(token, JWT_SECRET) as JwtUserPayload;
+  } catch (err) {
+    if (err instanceof jwt.TokenExpiredError) {
+      throw new UnauthorizedException("Unauthorized");
+    }
+
+    throw err;
+  }
+};

@@ -1,13 +1,12 @@
 import { NextFunction, Request, Response } from "express";
 import z, { ZodError, ZodObject } from "zod";
-import { AppError } from "../shared/appError";
 import { AppLogger } from "../shared/appLogger";
-import { ValidationError } from "../shared/validationError";
+import { UnprocessableEntityException } from "../shared/exceptions/unprocessableEntityException";
 
-export const requestValidation = (schema: ZodObject) => {
+export const schemaValidationMiddleware = (schema: ZodObject) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const parsed = await schema.parseAsync({
+      await schema.parseAsync({
         body: req.body,
         query: req.query,
         params: req.params,
@@ -18,7 +17,10 @@ export const requestValidation = (schema: ZodObject) => {
       if (err instanceof ZodError) {
         AppLogger.error(z.prettifyError(err));
         return next(
-          new ValidationError(err.issues.map((issue) => issue.message)),
+          new UnprocessableEntityException(
+            "Validation rule failure",
+            err.issues.map((issue) => issue.message),
+          ),
         );
       }
       next(err);
