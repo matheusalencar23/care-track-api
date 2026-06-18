@@ -1,9 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import { AppError } from "../shared/appError";
 import { AppLogger } from "../shared/appLogger";
-import jwt from "jsonwebtoken";
 import User from "../models/user";
-import { JwtUserPayload } from "../models/jwtuserpayload";
+import { verifyToken } from "../utils/tokenUtils";
 
 export const authentication = async (
   req: Request,
@@ -20,10 +19,7 @@ export const authentication = async (
       return next(new AppError("Unauthorized", 401));
     }
 
-    const verifiedToken = jwt.verify(
-      token,
-      process.env.JWT_SECRET ?? "",
-    ) as JwtUserPayload;
+    const verifiedToken = verifyToken(token);
 
     const user = await User.findOne({
       _id: verifiedToken._id,

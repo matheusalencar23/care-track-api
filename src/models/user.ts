@@ -1,10 +1,10 @@
-import bcrypt from "bcryptjs";
 import mongoose, { Document } from "mongoose";
+import { comparePassword, hashPassword } from "../utils/cryptUtils";
 
 interface IUser extends Document {
   name: string;
   email: string;
-  hash_password: string;
+  password: string;
   authenticate: (password: string) => Promise<boolean>;
 }
 
@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema<IUser>({
     trim: true,
     lowercase: true,
   },
-  hash_password: {
+  password: {
     type: String,
     required: true,
     trim: true,
@@ -29,8 +29,14 @@ const userSchema = new mongoose.Schema<IUser>({
 });
 
 userSchema.methods.authenticate = async function (password: string) {
-  return await bcrypt.compare(password, this.hash_password);
+  return await comparePassword(password, this.password);
 };
+
+userSchema.pre("save", async function () {
+  if (this.isModified("password")) {
+    this.password = await hashPassword(this.password);
+  }
+});
 
 const User = mongoose.model("User", userSchema);
 

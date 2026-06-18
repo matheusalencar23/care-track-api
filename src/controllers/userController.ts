@@ -1,9 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import User from "../models/user";
 import { AppError } from "../shared/appError";
-import bcrypt from "bcryptjs";
 import { AppLogger } from "../shared/appLogger";
-import jwt from "jsonwebtoken";
+import { generateToken } from "../utils/tokenUtils";
 
 export const signup = async (
   req: Request,
@@ -20,15 +19,13 @@ export const signup = async (
       return next(new AppError("User already exists", 400));
     }
 
-    const hash_password = await bcrypt.hash(password, 10);
-
     const _user = new User({
       name,
       email,
-      hash_password,
+      password,
     });
 
-    const savedUser = await _user.save();
+    await _user.save();
 
     res.status(201).json({
       name,
@@ -62,9 +59,7 @@ export const signin = async (
       return next(new AppError("Invalid credentials", 400));
     }
 
-    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET ?? "", {
-      expiresIn: 10,
-    });
+    const token = generateToken({ _id: user._id });
 
     res.json({
       token,
