@@ -4,6 +4,8 @@ import { AppLogger } from "../shared/appLogger";
 import { generateToken } from "../utils/tokenUtils";
 import { BadRequestException } from "../shared/exceptions/badRequestError";
 import { HttpException } from "../shared/exceptions/httpException";
+import { createUser } from "../services/userService";
+import { login } from "../services/authenticationService";
 
 export const signup = async (
   req: Request,
@@ -14,20 +16,7 @@ export const signup = async (
   AppLogger.info(`Create user {name=${name}, email=${email}}`);
 
   try {
-    const userAlreadyExists = await User.findOne({ email });
-
-    if (userAlreadyExists) {
-      return next(new BadRequestException("User already exists"));
-    }
-
-    const _user = new User({
-      name,
-      email,
-      password,
-    });
-
-    await _user.save();
-
+    await createUser(name, email, password);
     AppLogger.info(`User created successfully`);
     res.status(201).json({
       name,
@@ -35,7 +24,7 @@ export const signup = async (
     });
   } catch (err) {
     AppLogger.error(`Error creating user: ${err}}`);
-    return next(new HttpException("Internal Server Error", 500, null));
+    return next(err);
   }
 };
 
@@ -45,27 +34,27 @@ export const signin = async (
   next: NextFunction,
 ) => {
   const { email, password } = req.body;
+  AppLogger.info(`Logging in {email=${email}}`);
 
   try {
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return next(new BadRequestException("Invalid credentials"));
-    }
-
-    const isPasswordMatched = await user.authenticate(password);
-
-    if (!isPasswordMatched) {
-      return next(new BadRequestException("Invalid credentials"));
-    }
-
-    const token = generateToken({ _id: user._id });
+    const token = await login(email, password);
 
     res.json({
       token,
     });
   } catch (err) {
     AppLogger.error(`Error logging in: ${err}}`);
-    return next(new HttpException("Internal Server Error", 500, null));
+    return next(err);
   }
+};
+
+export const me = async (req: Request, res: Response, next: NextFunction) => {
+  AppLogger.info(`Getting me`);
+  const user = req.user;
+
+  AppLogger.info(`Getting me`);
+  return res.json({
+    name: user.name,
+    email: user.email
+  });
 };
