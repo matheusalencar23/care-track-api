@@ -6,6 +6,7 @@ import { BadRequestException } from "../shared/exceptions/badRequestError";
 import { HttpException } from "../shared/exceptions/httpException";
 import { createUser } from "../services/userService";
 import { login } from "../services/authenticationService";
+import { ENV } from "../config/secrets";
 
 export const signup = async (
   req: Request,
@@ -39,9 +40,14 @@ export const signin = async (
   try {
     const token = await login(email, password);
 
-    res.json({
-      token,
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: ENV === "production",
+      sameSite: "strict",
+      maxAge: 3600000,
     });
+
+    res.send();
   } catch (err) {
     AppLogger.error(`Error logging in: ${err}}`);
     return next(err);
@@ -53,6 +59,6 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
 
   return res.json({
     name: user.name,
-    email: user.email
+    email: user.email,
   });
 };

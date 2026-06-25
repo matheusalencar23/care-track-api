@@ -11,11 +11,11 @@ export const authenticationMiddleware = async (
   next: NextFunction,
 ) => {
   try {
-    if (!req.headers.authorization) {
+    if (!req.cookies.token) {
       return next(new UnauthorizedException("Invalid token"));
     }
 
-    const token = req.headers.authorization.split(" ")[1];
+    const token = req.cookies.token;
     if (!token) {
       return next(new UnauthorizedException("Invalid token"));
     }
