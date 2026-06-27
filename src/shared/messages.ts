@@ -1,0 +1,1 @@
+export const INVALID_REGISTRATION_CREDENTIALS = "Informações de cadastro inválidas. Entre em contato com o suporte!";

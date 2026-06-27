@@ -1,9 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import User from "../models/user";
 import { AppLogger } from "../shared/appLogger";
-import { generateToken } from "../utils/tokenUtils";
-import { BadRequestException } from "../shared/exceptions/badRequestError";
-import { HttpException } from "../shared/exceptions/httpException";
 import { createUser } from "../services/userService";
 import { login } from "../services/authenticationService";
 import { ENV } from "../config/secrets";

@@ -10,6 +10,7 @@ export class UnprocessableEntityException extends HttpException {
     return {
       message: this.message,
       errors: this._errors,
+      timestamp: this.timestamp,
     };
   }
 }

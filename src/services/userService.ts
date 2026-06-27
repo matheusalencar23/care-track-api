@@ -1,5 +1,6 @@
 import User from "../models/user";
 import { BadRequestException } from "../shared/exceptions/badRequestError";
+import { INVALID_REGISTRATION_CREDENTIALS } from "../shared/messages";
 
 export const createUser = async (
   name: string,
@@ -9,7 +10,7 @@ export const createUser = async (
   const userAlreadyExists = await User.findOne({ email });
 
   if (userAlreadyExists) {
-    throw new BadRequestException("User already exists");
+    throw new BadRequestException(INVALID_REGISTRATION_CREDENTIALS);
   }
 
   const user = new User({
@@ -20,4 +21,3 @@ export const createUser = async (
 
   await user.save();
 };
-
