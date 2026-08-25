@@ -25,3 +25,7 @@ jobs:
 
             - name: Check
               run: npm run check
+              env:
+                ENV: "test"
+                JWT_SECRET: "secret_para_testes_123"
+                MONGO_DB_URL_CONNECTION: "mongodb://localhost:27017/test_db"
