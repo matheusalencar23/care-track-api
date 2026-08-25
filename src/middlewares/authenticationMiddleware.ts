@@ -30,7 +30,10 @@ export const authenticationMiddleware = async (
       return next(new UnauthorizedException("Invalid token"));
     }
 
-    req.user = user;
+    req.user = {
+      name: user.name,
+      email: user.email,
+    };
     next();
   } catch (err) {
     AppLogger.error(`Authentication error: ${err}}`);
