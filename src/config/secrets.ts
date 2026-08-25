@@ -1,7 +1,3 @@
-import { loadEnvFile } from "node:process";
-
-loadEnvFile(".env");
-
 function requiredEnv(name: string): string {
   const value = process.env[name];
 
