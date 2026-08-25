@@ -1,5 +1,11 @@
 import { loadEnvFile } from "node:process";
-loadEnvFile(".env");
+import { AppLogger } from "../shared/appLogger.js";
+
+try {
+  loadEnvFile(".env");
+} catch {
+   AppLogger.info("Missing Env file");
+}
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
