@@ -3,6 +3,7 @@ import { AppLogger } from "../shared/appLogger.js";
 import { createUser } from "../services/userService.js";
 import { login } from "../services/authenticationService.js";
 import { ENV } from "../config/secrets.js";
+import { UnauthorizedException } from "../shared/exceptions/unauthorizedException.js";
 
 export const signup = async (
   req: Request,
@@ -53,6 +54,10 @@ export const signin = async (
 export const me = async (req: Request, res: Response) => {
   AppLogger.info("Getting me...");
   const user = req.user;
+
+  if (!user) {
+    throw new UnauthorizedException("Unauthorized");
+  }
 
   return res.json({
     name: user.name,

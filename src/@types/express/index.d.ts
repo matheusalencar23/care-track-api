@@ -1,9 +1,11 @@
-import { HydratedDocument } from "mongoose";
+import { AuthenticatedUser } from "../../models/authenticatedUser.ts";
 
 declare global {
   namespace Express {
     interface Request {
-      user?: HydratedDocument<IUser>;
+      user?: AuthenticatedUser;
     }
   }
 }
+
+export {};
