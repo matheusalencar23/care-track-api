@@ -1,6 +1,6 @@
-import User from "../models/user";
-import { BadRequestException } from "../shared/exceptions/badRequestError";
-import { INVALID_REGISTRATION_CREDENTIALS } from "../shared/messages";
+import User from "../models/user.js";
+import { BadRequestException } from "../shared/exceptions/badRequestError.js";
+import { INVALID_REGISTRATION_CREDENTIALS } from "../shared/messages.js";
 
 export const createUser = async (
   name: string,

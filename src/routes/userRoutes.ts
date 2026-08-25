@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { schemaValidationMiddleware } from "../middlewares/schemaValidationMiddleware";
-import { SignupSchema } from "../schemas/signupSchema";
-import { me, signin, signup } from "../controllers/userController";
-import { authenticationMiddleware } from "../middlewares/authenticationMiddleware";
+import { schemaValidationMiddleware } from "../middlewares/schemaValidationMiddleware.js";
+import { SignupSchema } from "../schemas/signupSchema.js";
+import { me, signin, signup } from "../controllers/userController.js";
+import { authenticationMiddleware } from "../middlewares/authenticationMiddleware.js";
 
 const routes = Router();
 

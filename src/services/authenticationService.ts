@@ -1,6 +1,6 @@
-import User from "../models/user";
-import { BadRequestException } from "../shared/exceptions/badRequestError";
-import { generateToken } from "../utils/tokenUtils";
+import User from "../models/user.js";
+import { BadRequestException } from "../shared/exceptions/badRequestError.js";
+import { generateToken } from "../utils/tokenUtils.js";
 
 export const login = async (email: string, password: string) => {
   const user = await User.findOne({ email });

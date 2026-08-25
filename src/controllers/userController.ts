@@ -1,8 +1,8 @@
 import { NextFunction, Request, Response } from "express";
-import { AppLogger } from "../shared/appLogger";
-import { createUser } from "../services/userService";
-import { login } from "../services/authenticationService";
-import { ENV } from "../config/secrets";
+import { AppLogger } from "../shared/appLogger.js";
+import { createUser } from "../services/userService.js";
+import { login } from "../services/authenticationService.js";
+import { ENV } from "../config/secrets.js";
 
 export const signup = async (
   req: Request,
