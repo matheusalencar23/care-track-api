@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../shared/appLogger.js";
 import { createUser } from "../services/userService.js";
 import { login } from "../services/authenticationService.js";
-import { ENV } from "../config/secrets.js";
+import { NODE_ENV } from "../config/secrets.js";
 import { UnauthorizedException } from "../shared/exceptions/unauthorizedException.js";
 
 export const signup = async (
@@ -39,7 +39,7 @@ export const signin = async (
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: ENV === "production",
+      secure: NODE_ENV === "production",
       sameSite: "strict",
       maxAge: 3600000,
     });
