@@ -3,7 +3,7 @@ import { JwtUserPayload } from "../models/jwtUserPayload.js";
 import { UnauthorizedException } from "../shared/exceptions/unauthorizedException.js";
 import { JWT_SECRET } from "../config/secrets.js";
 
-export const generateToken = (body: Record<string, any>) => {
+export const generateToken = (body: Record<string, unknown>) => {
   return jwt.sign(body, JWT_SECRET, {
     expiresIn: "15m",
   });

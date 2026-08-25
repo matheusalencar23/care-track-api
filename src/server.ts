@@ -1,6 +1,3 @@
-import { loadEnvFile } from "node:process";
-loadEnvFile(".env");
-
 import { AppLogger } from "./shared/appLogger.js";
 import { connectDb } from "./db/db.js";
 import app from "./app.js";

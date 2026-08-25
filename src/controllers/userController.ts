@@ -50,7 +50,7 @@ export const signin = async (
   }
 };
 
-export const me = async (req: Request, res: Response, next: NextFunction) => {
+export const me = async (req: Request, res: Response) => {
   AppLogger.info("Getting me...");
   const user = req.user;
 

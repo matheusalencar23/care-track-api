@@ -1,6 +1,6 @@
 export class HttpException extends Error {
   protected _statusCode: number;
-  protected _errors: any;
+  protected _errors: unknown;
   protected _timestamp: string;
 
   get statusCode() {
@@ -11,7 +11,7 @@ export class HttpException extends Error {
     return this._timestamp;
   }
 
-  constructor(message: string, statusCode: number, errors: any) {
+  constructor(message: string, statusCode: number, errors: unknown) {
     super(message);
     this._statusCode = statusCode;
     this._errors = errors;
@@ -21,7 +21,7 @@ export class HttpException extends Error {
   toJson(): Record<string, unknown> {
     return {
       message: this.message,
-      timestamp: this.timestamp
+      timestamp: this.timestamp,
     };
   }
 }
