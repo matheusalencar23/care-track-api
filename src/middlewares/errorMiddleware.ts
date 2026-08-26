@@ -1,8 +1,8 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../shared/appLogger.js";
 import { HttpException } from "../shared/exceptions/httpException.js";
 
-export const errorMiddleware = (err: unknown, req: Request, res: Response) => {
+export const errorMiddleware = (err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof HttpException) {
     AppLogger.error(`${err.statusCode} - ${err.message}`);
     return res.status(err.statusCode).json(err.toJson());
@@ -21,4 +21,6 @@ export const errorMiddleware = (err: unknown, req: Request, res: Response) => {
       message,
     });
   }
+
+  next();
 };
