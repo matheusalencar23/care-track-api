@@ -5,7 +5,7 @@ import { JWT_SECRET } from "../config/secrets.js";
 
 export const generateToken = (body: Record<string, unknown>) => {
   return jwt.sign(body, JWT_SECRET, {
-    expiresIn: "15m",
+    expiresIn: "1h",
   });
 };
 
