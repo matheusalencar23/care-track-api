@@ -3,12 +3,13 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { errorMiddleware } from "./middlewares/errorMiddleware.js";
 import routes from "./routes/index.js";
+import { CORS_ORIGIN } from "./config/secrets.js";
 
 const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: CORS_ORIGIN,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
