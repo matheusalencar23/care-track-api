@@ -1,7 +1,10 @@
-import jwt from "jsonwebtoken";
-import { JwtUserPayload } from "../models/jwtUserPayload.js";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import { UnauthorizedException } from "../shared/exceptions/unauthorizedException.js";
 import { JWT_SECRET } from "../config/secrets.js";
+
+interface JwtUserPayload extends JwtPayload {
+  _id: string;
+}
 
 export const generateToken = (body: Record<string, unknown>) => {
   return jwt.sign(body, JWT_SECRET, {

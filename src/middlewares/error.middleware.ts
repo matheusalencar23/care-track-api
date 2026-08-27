@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import { AppLogger } from "../shared/appLogger.js";
 import { HttpException } from "../shared/exceptions/httpException.js";
+import { AppLogger } from "../shared/appLogger.js";
 
 export const errorMiddleware = (
   err: unknown,

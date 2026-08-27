@@ -9,3 +9,12 @@ export const SignupSchema = z.object({
       .nonempty("A senha é obrigatória"),
   }),
 });
+
+export const SigninSchema = z.object({
+  body: z.object({
+    email: z.email("Email inválido"),
+    password: z
+      .string("A senha é obrigatória")
+      .nonempty("A senha é obrigatória"),
+  }),
+});

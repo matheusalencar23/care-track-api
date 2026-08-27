@@ -1,6 +1,6 @@
-import { findByEmail, save } from "../repository/userRepository.js";
-import { BadRequestException } from "../shared/exceptions/badRequestError.js";
-import { INVALID_REGISTRATION_CREDENTIALS } from "../shared/messages.js";
+import { findByEmail, save } from "./user.repository.js";
+import { BadRequestException } from "../../shared/exceptions/badRequestError.js";
+import { INVALID_REGISTRATION_CREDENTIALS } from "../../shared/messages.js";
 
 export const createUser = async (
   name: string,

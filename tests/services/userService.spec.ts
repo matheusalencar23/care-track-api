@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createUser } from "../../src/services/userService.js";
+import { createUser } from "../../src/modules/user/user.service.js";
 import { INVALID_REGISTRATION_CREDENTIALS } from "../../src/shared/messages.js";
-import { findByEmail, save } from "../../src/repository/userRepository.js";
+import { findByEmail, save } from "../../src/modules/user/user.repository.js";
 
-vi.mock("../../src/repository/userRepository.js", () => ({
+vi.mock("../../src/modules/user/user.repository.js", () => ({
   findByEmail: vi.fn(),
   save: vi.fn(),
 }));

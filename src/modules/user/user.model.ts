@@ -1,5 +1,5 @@
 import mongoose, { Document } from "mongoose";
-import { comparePassword, hashPassword } from "../utils/cryptUtils.js";
+import { comparePassword, hashPassword } from "../../utils/crypt.utils.js";
 
 export interface IUser extends Document {
   name: string;

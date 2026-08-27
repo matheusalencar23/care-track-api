@@ -1,6 +1,6 @@
-import { findByEmail } from "../repository/userRepository.js";
-import { BadRequestException } from "../shared/exceptions/badRequestError.js";
-import { generateToken } from "../utils/tokenUtils.js";
+import { findByEmail } from "../user/user.repository.js";
+import { BadRequestException } from "../../shared/exceptions/badRequestError.js";
+import { generateToken } from "../../utils/token.utils.js";
 
 export const login = async (email: string, password: string) => {
   const user = await findByEmail(email);
