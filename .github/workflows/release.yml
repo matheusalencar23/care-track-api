@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   release-and-build:
-    name: Release
+    name: Release & Build
     runs-on: ubuntu-latest
 
     steps:
