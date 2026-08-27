@@ -1,9 +1,11 @@
 name: Docker
 
 on:
-    push:
-        tags:
-            - "v*"
+    workflow_run:
+        workflows:
+            - Release
+        types:
+            - completed
 
 permissions:
     contents: read
