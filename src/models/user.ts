@@ -1,7 +1,7 @@
 import mongoose, { Document } from "mongoose";
 import { comparePassword, hashPassword } from "../utils/cryptUtils.js";
 
-interface IUser extends Document {
+export interface IUser extends Document {
   name: string;
   email: string;
   password: string;

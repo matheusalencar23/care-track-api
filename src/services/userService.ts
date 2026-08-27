@@ -1,4 +1,4 @@
-import User from "../models/user.js";
+import { findByEmail, save } from "../repository/userRepository.js";
 import { BadRequestException } from "../shared/exceptions/badRequestError.js";
 import { INVALID_REGISTRATION_CREDENTIALS } from "../shared/messages.js";
 
@@ -7,17 +7,11 @@ export const createUser = async (
   email: string,
   password: string,
 ) => {
-  const userAlreadyExists = await User.findOne({ email });
+  const userAlreadyExists = await findByEmail(email);
 
   if (userAlreadyExists) {
     throw new BadRequestException(INVALID_REGISTRATION_CREDENTIALS);
   }
 
-  const user = new User({
-    name,
-    email,
-    password,
-  });
-
-  await user.save();
+  save(name, email, password);
 };
