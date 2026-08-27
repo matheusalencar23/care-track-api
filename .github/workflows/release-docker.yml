@@ -81,3 +81,5 @@ jobs:
           tags: |
             ghcr.io/matheusalencar23/care-track-api:${{ steps.check_release.outputs.version }}
             ghcr.io/matheusalencar23/care-track-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
