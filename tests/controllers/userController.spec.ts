@@ -1,20 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { me, signin, signup } from "../../src/controllers/userController.js";
+import { me, signin, signup } from "../../src/modules/user/user.controller.js";
 
-import { createUser } from "../../src/services/userService.js";
-import { login } from "../../src/services/authenticationService.js";
+import { createUser } from "../../src/modules/user/user.service.js";
+import { login } from "../../src/modules/auth/auth.service.js";
 import {
   createMockNext,
   createMockRequest,
   createMockResponse,
 } from "../helpers/expressMock.js";
 
-vi.mock("../../src/services/userService.js", () => ({
+vi.mock("../../src/modules/user/user.service.js", () => ({
   createUser: vi.fn(),
 }));
 
-vi.mock("../../src/services/authenticationService.js", () => ({
+vi.mock("../../src/modules/auth/auth.service.js", () => ({
   login: vi.fn(),
 }));
 
@@ -85,7 +85,6 @@ describe("signup", () => {
 
     expect(res.status).not.toHaveBeenCalled();
   });
-
 });
 
 describe("signin", () => {

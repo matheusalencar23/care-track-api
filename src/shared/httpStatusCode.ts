@@ -22,5 +22,5 @@ export enum HTTPStatusCode {
   NotImplemented = 501,
   BadGateway = 502,
   ServiceUnavailable = 503,
-  GatewayTiemout = 504,
+  GatewayTimeout = 504,
 }

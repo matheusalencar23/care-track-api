@@ -1,9 +1,9 @@
-import User from "../models/user.js";
-import { BadRequestException } from "../shared/exceptions/badRequestError.js";
-import { generateToken } from "../utils/tokenUtils.js";
+import { findByEmail } from "../user/user.repository.js";
+import { BadRequestException } from "../../shared/exceptions/badRequestError.js";
+import { generateToken } from "../../utils/token.utils.js";
 
 export const login = async (email: string, password: string) => {
-  const user = await User.findOne({ email });
+  const user = await findByEmail(email);
 
   if (!user) {
     throw new BadRequestException("Invalid credentials");

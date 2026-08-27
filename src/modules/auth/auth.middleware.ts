@@ -1,9 +1,9 @@
 import { NextFunction, Request, Response } from "express";
-import { AppLogger } from "../shared/appLogger.js";
-import User from "../models/user.js";
-import { verifyToken } from "../utils/tokenUtils.js";
-import { UnauthorizedException } from "../shared/exceptions/unauthorizedException.js";
-import { HttpException } from "../shared/exceptions/httpException.js";
+import { AppLogger } from "../../shared/appLogger.js";
+import User from "../user/user.model.js";
+import { verifyToken } from "../../utils/token.utils.js";
+import { UnauthorizedException } from "../../shared/exceptions/unauthorizedException.js";
+import { HttpException } from "../../shared/exceptions/httpException.js";
 
 export const authenticationMiddleware = async (
   req: Request,

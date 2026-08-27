@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparePassword, hashPassword } from "../../src/utils/cryptUtils.js";
+import { comparePassword, hashPassword } from "../../src/utils/crypt.utils.js";
 
 describe("cryptUtils", () => {
   describe("hashPassword", () => {

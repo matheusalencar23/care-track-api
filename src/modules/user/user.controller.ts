@@ -1,9 +1,9 @@
 import { NextFunction, Request, Response } from "express";
-import { AppLogger } from "../shared/appLogger.js";
-import { createUser } from "../services/userService.js";
-import { login } from "../services/authenticationService.js";
-import { NODE_ENV } from "../config/secrets.js";
-import { UnauthorizedException } from "../shared/exceptions/unauthorizedException.js";
+import { AppLogger } from "../../shared/appLogger.js";
+import { createUser } from "./user.service.js";
+import { login } from "../auth/auth.service.js";
+import { NODE_ENV } from "../../config/secrets.js";
+import { UnauthorizedException } from "../../shared/exceptions/unauthorizedException.js";
 
 export const signup = async (
   req: Request,
