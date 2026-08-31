@@ -1,5 +1,5 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
-import { UnauthorizedException } from "../shared/exceptions/unauthorizedException.js";
+import { UnauthorizedException } from "../shared/exceptions/index.js";
 import { JWT_SECRET } from "../config/secrets.js";
 
 interface JwtUserPayload extends JwtPayload {

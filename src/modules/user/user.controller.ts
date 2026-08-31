@@ -1,9 +1,12 @@
 import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../../shared/appLogger.js";
-import { createUser } from "./user.service.js";
+import * as userService from "./user.service.js";
 import { login } from "../auth/auth.service.js";
 import { NODE_ENV } from "../../config/secrets.js";
-import { UnauthorizedException } from "../../shared/exceptions/unauthorizedException.js";
+import {
+  UnauthorizedException,
+  UnprocessableEntityException,
+} from "../../shared/exceptions/index.js";
 
 export const signup = async (
   req: Request,
@@ -14,7 +17,7 @@ export const signup = async (
   AppLogger.info(`Create user {name=${name}, email=${email}}`);
 
   try {
-    await createUser(name, email, password);
+    await userService.createUser(name, email, password);
     AppLogger.info(`User created successfully`);
     res.status(201).json({
       name,
@@ -46,7 +49,7 @@ export const signin = async (
 
     res.send();
   } catch (err) {
-    AppLogger.error(`Error logging in: ${err}}`);
+    AppLogger.error(`Error logging in: ${err}`);
     return next(err);
   }
 };
@@ -63,4 +66,26 @@ export const me = async (req: Request, res: Response) => {
     name: user.name,
     email: user.email,
   });
+};
+
+export const validate = async (req: Request, res: Response) => {
+  AppLogger.info("Validating token...");
+  const token = req.query["token"] as string;
+
+  if (!token) {
+    throw new UnprocessableEntityException("Invalide validation token!", []);
+  }
+
+  await userService.validateUser(token);
+
+  return res.json();
+};
+
+export const resendValidation = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  AppLogger.info(`Resending confirmation email {email=${email}}`);
+
+  await userService.resendValidation(email);
+
+  return res.json();
 };

@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import z, { ZodError, ZodObject } from "zod";
 import { AppLogger } from "../shared/appLogger.js";
-import { UnprocessableEntityException } from "../shared/exceptions/unprocessableEntityException.js";
+import { UnprocessableEntityException } from "../shared/exceptions/index.js";
 
 export const schemaValidationMiddleware = (schema: ZodObject) => {
   return async (req: Request, res: Response, next: NextFunction) => {

@@ -2,8 +2,10 @@ import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../../shared/appLogger.js";
 import User from "../user/user.model.js";
 import { verifyToken } from "../../utils/token.utils.js";
-import { UnauthorizedException } from "../../shared/exceptions/unauthorizedException.js";
-import { HttpException } from "../../shared/exceptions/httpException.js";
+import {
+  UnauthorizedException,
+  HttpException,
+} from "../../shared/exceptions/index.js";
 
 export const authenticationMiddleware = async (
   req: Request,
