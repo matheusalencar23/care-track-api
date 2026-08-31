@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import { describe, expect, it } from "vitest";
 import { generateToken, verifyToken } from "../../src/utils/token.utils.js";
 import { JWT_SECRET } from "../../src/config/secrets.js";
-import { UnauthorizedException } from "../../src/shared/exceptions/unauthorizedException.js";
+import { UnauthorizedException } from "../../src/shared/exceptions/index.js";
 
 describe("tokenUtils", () => {
   describe("generateToken", () => {

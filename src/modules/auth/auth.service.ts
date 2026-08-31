@@ -1,11 +1,11 @@
 import { findByEmail } from "../user/user.repository.js";
-import { BadRequestException } from "../../shared/exceptions/badRequestError.js";
+import { BadRequestException } from "../../shared/exceptions/index.js";
 import { generateToken } from "../../utils/token.utils.js";
 
 export const login = async (email: string, password: string) => {
   const user = await findByEmail(email);
 
-  if (!user) {
+  if (!user || !user.emailVerifiedAt) {
     throw new BadRequestException("Invalid credentials");
   }
 

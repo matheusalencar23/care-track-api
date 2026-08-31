@@ -1,17 +1,73 @@
-import { findByEmail, save } from "./user.repository.js";
-import { BadRequestException } from "../../shared/exceptions/badRequestError.js";
+import * as userService from "./user.repository.js";
+import {
+  BadRequestException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from "../../shared/exceptions/index.js";
 import { INVALID_REGISTRATION_CREDENTIALS } from "../../shared/messages.js";
+import { sendConfirmationEmail } from "../../services/email/email.service.js";
+import * as emailVerificationTokenService from "../email/emailVerificationToken.service.js";
+import { EMAIL_HOST } from "../../config/secrets.js";
 
 export const createUser = async (
   name: string,
   email: string,
   password: string,
 ) => {
-  const userAlreadyExists = await findByEmail(email);
+  const userAlreadyExists = await userService.findByEmail(email);
 
   if (userAlreadyExists) {
     throw new BadRequestException(INVALID_REGISTRATION_CREDENTIALS);
   }
 
-  save(name, email, password);
+  const user = await userService.save(name, email, password);
+  await createValidationEmail(user.id, email, name);
+};
+
+export const validateUser = async (token: string) => {
+  const emailVerificationToken =
+    await emailVerificationTokenService.validateByToken(token);
+  const user = await userService.findById(
+    emailVerificationToken.userId.toString(),
+  );
+
+  if (user?.emailVerifiedAt) {
+    throw new UnprocessableEntityException("Email already verified!", []);
+  }
+
+  if (user) {
+    user.emailVerifiedAt = new Date();
+    await user?.save();
+  }
+
+  return;
+};
+
+export const resendValidation = async (email: string) => {
+  const user = await userService.findByEmail(email);
+
+  if (!user) {
+    throw new NotFoundException("User not found!");
+  }
+
+  if (user.emailVerifiedAt) {
+    throw new UnprocessableEntityException("Email already verified!", []);
+  }
+
+  await createValidationEmail(user.id, email, user.name);
+};
+
+const createValidationEmail = async (
+  userId: string,
+  email: string,
+  name: string,
+) => {
+  const emailVerificationToken =
+    await emailVerificationTokenService.createEmailVerificationToken(userId);
+
+  await sendConfirmationEmail(
+    email,
+    name,
+    `${EMAIL_HOST}?token=${emailVerificationToken}`,
+  );
 };
