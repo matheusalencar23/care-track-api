@@ -18,3 +18,15 @@ export const SigninSchema = z.object({
       .nonempty("A senha é obrigatória"),
   }),
 });
+
+export const ValidateUserSchema = z.object({
+  query: z.object({
+    token: z.string("Token inválido"),
+  }),
+});
+
+export const ResendValidationEmailSchema = z.object({
+  body: z.object({
+    email: z.email("Email inválido"),
+  }),
+});

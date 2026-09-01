@@ -1,4 +1,4 @@
-import * as userService from "./user.repository.js";
+import * as userRepository from "./user.repository.js";
 import {
   BadRequestException,
   NotFoundException,
@@ -14,20 +14,20 @@ export const createUser = async (
   email: string,
   password: string,
 ) => {
-  const userAlreadyExists = await userService.findByEmail(email);
+  const userAlreadyExists = await userRepository.findByEmail(email);
 
   if (userAlreadyExists) {
     throw new BadRequestException(INVALID_REGISTRATION_CREDENTIALS);
   }
 
-  const user = await userService.save(name, email, password);
+  const user = await userRepository.save(name, email, password);
   await createValidationEmail(user.id, email, name);
 };
 
 export const validateUser = async (token: string) => {
   const emailVerificationToken =
     await emailVerificationTokenService.validateByToken(token);
-  const user = await userService.findById(
+  const user = await userRepository.findById(
     emailVerificationToken.userId.toString(),
   );
 
@@ -44,7 +44,7 @@ export const validateUser = async (token: string) => {
 };
 
 export const resendValidation = async (email: string) => {
-  const user = await userService.findByEmail(email);
+  const user = await userRepository.findByEmail(email);
 
   if (!user) {
     throw new NotFoundException("User not found!");

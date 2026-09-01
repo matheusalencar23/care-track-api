@@ -1,9 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { me, signin, signup } from "../../src/modules/user/user.controller.js";
+import {
+  me,
+  resendValidation,
+  signin,
+  signup,
+  validate,
+} from "../../src/modules/user/user.controller.js";
 
-import { createUser } from "../../src/modules/user/user.service.js";
+import {
+  createUser,
+  resendValidation as resendValidationService,
+  validateUser,
+} from "../../src/modules/user/user.service.js";
 import { login } from "../../src/modules/auth/auth.service.js";
+import { UnauthorizedException } from "../../src/shared/exceptions/index.js";
 import {
   createMockNext,
   createMockRequest,
@@ -12,6 +23,8 @@ import {
 
 vi.mock("../../src/modules/user/user.service.js", () => ({
   createUser: vi.fn(),
+  validateUser: vi.fn(),
+  resendValidation: vi.fn(),
 }));
 
 vi.mock("../../src/modules/auth/auth.service.js", () => ({
@@ -149,6 +162,10 @@ describe("signin", () => {
 });
 
 describe("me", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("should return the authenticated user's public data", async () => {
     const req = createMockRequest({
       user: {
@@ -158,12 +175,105 @@ describe("me", () => {
     });
 
     const res = createMockResponse();
+    const next = createMockNext();
 
-    await me(req, res);
+    await me(req, res, next);
 
     expect(res.json).toHaveBeenCalledWith({
       name: "John Doe",
       email: "john@example.com",
     });
+
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("should call next with UnauthorizedException when there is no authenticated user", async () => {
+    const req = createMockRequest({});
+    const res = createMockResponse();
+    const next = createMockNext();
+
+    await me(req, res, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+    expect(res.json).not.toHaveBeenCalled();
+  });
+});
+
+describe("validate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should validate the user and return 200", async () => {
+    vi.mocked(validateUser).mockResolvedValue(undefined);
+
+    const req = createMockRequest({ query: { token: "some-token" } });
+    const res = createMockResponse();
+    const next = createMockNext();
+
+    await validate(req, res, next);
+
+    expect(validateUser).toHaveBeenCalledWith("some-token");
+    expect(res.json).toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("should call next with UnprocessableEntityException when token is missing", async () => {
+    const req = createMockRequest({ query: {} });
+    const res = createMockResponse();
+    const next = createMockNext();
+
+    await validate(req, res, next);
+
+    expect(validateUser).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 422 }),
+    );
+    expect(res.json).not.toHaveBeenCalled();
+  });
+
+  it("should call next when validateUser throws", async () => {
+    const error = new Error("Invalid token!");
+    vi.mocked(validateUser).mockRejectedValue(error);
+
+    const req = createMockRequest({ query: { token: "some-token" } });
+    const res = createMockResponse();
+    const next = createMockNext();
+
+    await validate(req, res, next);
+
+    expect(next).toHaveBeenCalledWith(error);
+    expect(res.json).not.toHaveBeenCalled();
+  });
+});
+
+describe("resendValidation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should resend the validation email and return 200", async () => {
+    vi.mocked(resendValidationService).mockResolvedValue(undefined);
+
+    const req = createMockRequest({ body: { email: "john@example.com" } });
+    const res = createMockResponse();
+
+    await resendValidation(req, res);
+
+    expect(resendValidationService).toHaveBeenCalledWith("john@example.com");
+    expect(res.json).toHaveBeenCalled();
+  });
+
+  it("should still return 200 when resendValidation throws, to avoid leaking whether the email exists", async () => {
+    vi.mocked(resendValidationService).mockRejectedValue(
+      new Error("User not found!"),
+    );
+
+    const req = createMockRequest({ body: { email: "ghost@example.com" } });
+    const res = createMockResponse();
+
+    await resendValidation(req, res);
+
+    expect(res.json).toHaveBeenCalled();
   });
 });

@@ -54,38 +54,60 @@ export const signin = async (
   }
 };
 
-export const me = async (req: Request, res: Response) => {
+export const me = async (req: Request, res: Response, next: NextFunction) => {
   AppLogger.info("Getting me...");
   const user = req.user;
 
-  if (!user) {
-    throw new UnauthorizedException("Unauthorized");
-  }
+  try {
+    if (!user) {
+      throw new UnauthorizedException("Unauthorized");
+    }
 
-  return res.json({
-    name: user.name,
-    email: user.email,
-  });
+    return res.json({
+      name: user.name,
+      email: user.email,
+    });
+  } catch (err) {
+    AppLogger.error(`Error getting me: ${err}`);
+    return next(err);
+  }
 };
 
-export const validate = async (req: Request, res: Response) => {
+export const validate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   AppLogger.info("Validating token...");
   const token = req.query["token"] as string;
 
-  if (!token) {
-    throw new UnprocessableEntityException("Invalide validation token!", []);
+  try {
+    if (!token) {
+      throw new UnprocessableEntityException("Invalide validation token!", []);
+    }
+
+    await userService.validateUser(token);
+
+    return res.json();
+  } catch (err) {
+    AppLogger.error(`Error validating user`);
+    return next(err);
   }
-
-  await userService.validateUser(token);
-
-  return res.json();
 };
 
 export const resendValidation = async (req: Request, res: Response) => {
   const { email } = req.body;
   AppLogger.info(`Resending confirmation email {email=${email}}`);
 
-  await userService.resendValidation(email);
+  try {
+    await userService.resendValidation(email);
 
-  return res.json();
+    return res.json();
+  } catch (err) {
+    AppLogger.error(`Error resending validation`);
+    if (err instanceof Error && err.stack) {
+      AppLogger.error(err.stack);
+    }
+    return res.json();
+  }
 };
