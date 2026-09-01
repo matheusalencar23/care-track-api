@@ -28,6 +28,9 @@ jobs:
                 echo "ENV=test" >> .env.test
                 echo "JWT_SECRET=test-secret" >> .env.test
                 echo "MONGO_DB_URL_CONNECTION=mongodb://localhost:27017/care-track-test" >> .env.test
+                echo "EMAIL_HOST=http://localhost:3000/verify-email" >> .env.test
+                echo "RESEND_API_KEY=test-resend-api-key" >> .env.test
+                echo "RESEND_EMAIL_ORIGIN=test@example.com" >> .env.test
 
             - name: Check
               run: npm run check
