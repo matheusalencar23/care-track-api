@@ -1,13 +1,23 @@
 import { Router } from "express";
 import userRoutes from "./modules/user/user.routes.js";
+import authRoutes from "./modules/auth/auth.routes.js";
+import mongoose from "mongoose";
+import {
+  authLimiter,
+  generalLimiter,
+} from "./middlewares/rateLimit.middleware.js";
 
 const routes = Router();
 
-routes.use("/users", userRoutes);
+routes.use("/users", generalLimiter, userRoutes);
+routes.use("/auth", authLimiter, authRoutes);
 
 routes.get("/health", (_req, res) => {
-  return res.status(200).json({
-    status: "ok",
+  const isDbConnected = mongoose.connection.readyState === 1;
+
+  return res.status(isDbConnected ? 200 : 503).json({
+    status: isDbConnected ? "ok" : "degraded",
+    db: isDbConnected ? "connected" : "disconnected",
   });
 });
 

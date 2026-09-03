@@ -8,6 +8,7 @@ import { INVALID_REGISTRATION_CREDENTIALS } from "../../shared/messages.js";
 import { sendConfirmationEmail } from "../../services/email/email.service.js";
 import * as emailVerificationTokenService from "../email/emailVerificationToken.service.js";
 import { EMAIL_HOST } from "../../config/secrets.js";
+import { AppLogger } from "../../shared/appLogger.js";
 
 export const createUser = async (
   name: string,
@@ -21,7 +22,7 @@ export const createUser = async (
   }
 
   const user = await userRepository.save(name, email, password);
-  await createValidationEmail(user.id, email, name);
+  createValidationEmail(user.id, email, name);
 };
 
 export const validateUser = async (token: string) => {
@@ -62,12 +63,21 @@ const createValidationEmail = async (
   email: string,
   name: string,
 ) => {
-  const emailVerificationToken =
-    await emailVerificationTokenService.createEmailVerificationToken(userId);
+  try {
+    const emailVerificationToken =
+      await emailVerificationTokenService.createEmailVerificationToken(userId);
 
-  await sendConfirmationEmail(
-    email,
-    name,
-    `${EMAIL_HOST}?token=${emailVerificationToken}`,
-  );
+    await sendConfirmationEmail(
+      email,
+      name,
+      `${EMAIL_HOST}?token=${emailVerificationToken}`,
+    );
+  } catch (err) {
+    AppLogger.error("Error sending confirmation email to: " + email);
+    if (err instanceof Error && err.stack) {
+      AppLogger.error(err.stack);
+    }
+
+    throw err;
+  }
 };
