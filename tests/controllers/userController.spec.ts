@@ -20,6 +20,7 @@ import {
   createMockRequest,
   createMockResponse,
 } from "../helpers/expressMock.js";
+import { messages } from "../../src/shared/messages.js";
 
 vi.mock("../../src/modules/user/user.service.js", () => ({
   createUser: vi.fn(),
@@ -138,7 +139,7 @@ describe("signin", () => {
   });
 
   it("should call next when login throws", async () => {
-    const error = new Error("Invalid credentials");
+    const error = new Error(messages.INVALID_CREDENTIALS);
 
     vi.mocked(login).mockRejectedValue(error);
 

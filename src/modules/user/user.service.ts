@@ -4,7 +4,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
-import { INVALID_REGISTRATION_CREDENTIALS } from "../../shared/messages.js";
+import { messages } from "../../shared/messages.js";
 import { sendConfirmationEmail } from "../../services/email/email.service.js";
 import * as emailVerificationTokenService from "../email/emailVerificationToken.service.js";
 import { EMAIL_HOST } from "../../config/secrets.js";
@@ -18,7 +18,7 @@ export const createUser = async (
   const userAlreadyExists = await userRepository.findByEmail(email);
 
   if (userAlreadyExists) {
-    throw new BadRequestException(INVALID_REGISTRATION_CREDENTIALS);
+    throw new BadRequestException(messages.INVALID_REGISTRATION_CREDENTIALS);
   }
 
   const user = await userRepository.save(name, email, password);

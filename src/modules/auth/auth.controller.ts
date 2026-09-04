@@ -10,7 +10,7 @@ export const signin = async (
   next: NextFunction,
 ) => {
   const { email, password } = req.body;
-  AppLogger.info(`Logging in {email=${email}}`);
+  AppLogger.info(`Signing in {email=${email}}`);
 
   try {
     const token = await login(email, password);
@@ -24,7 +24,7 @@ export const signin = async (
 
     res.send();
   } catch (err) {
-    AppLogger.error(`Error logging in: ${err}`);
+    AppLogger.error(`Error signing in: ${err}`);
     return next(err);
   }
 };
@@ -44,6 +44,27 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
     });
   } catch (err) {
     AppLogger.error(`Error getting me: ${err}`);
+    return next(err);
+  }
+};
+
+export const signout = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  AppLogger.info(`Signing out...`);
+
+  try {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    return res.status(204).send();
+  } catch (err) {
+    AppLogger.error(`Error signing out: ${err}`);
     return next(err);
   }
 };

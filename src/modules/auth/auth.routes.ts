@@ -12,6 +12,8 @@ routes.post(
   authController.signin,
 );
 
+routes.post("/signout", authenticationMiddleware, authController.signout);
+
 routes.get("/me", authenticationMiddleware, authController.me);
 
 export default routes;

@@ -5,7 +5,7 @@ import {
   resendValidation,
   validateUser,
 } from "../../src/modules/user/user.service.js";
-import { INVALID_REGISTRATION_CREDENTIALS } from "../../src/shared/messages.js";
+import { messages } from "../../src/shared/messages.js";
 
 import * as userRepository from "../../src/modules/user/user.repository.js";
 import * as emailVerificationTokenService from "../../src/modules/email/emailVerificationToken.service.js";
@@ -40,7 +40,7 @@ describe("userService", () => {
 
       await expect(
         createUser("John Doe", "john@example.com", "password123"),
-      ).rejects.toThrow(INVALID_REGISTRATION_CREDENTIALS);
+      ).rejects.toThrow(messages.INVALID_REGISTRATION_CREDENTIALS);
 
       expect(userRepository.findByEmail).toHaveBeenCalledWith(
         "john@example.com",
