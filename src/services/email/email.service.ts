@@ -9,7 +9,7 @@ const resend = new Resend(RESEND_API_KEY);
 const getEmailTemplate = async (template: string) => {
   const templatePath = resolve(
     process.cwd(),
-    `src/services/email/templates/${template}.html`,
+    `templates/${template}.html`,
   );
 
   return await readFile(templatePath, "utf-8");
