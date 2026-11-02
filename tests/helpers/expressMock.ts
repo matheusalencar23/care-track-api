@@ -16,6 +16,7 @@ export const createMockResponse = (json = vi.fn()): Response => {
     json: json,
     send: vi.fn(),
     cookie: vi.fn(),
+    clearCookie: vi.fn(),
   };
 
   res.status.mockReturnValue(res as never);

@@ -86,12 +86,13 @@ O projeto vai tratar dados de saúde, classificados como **dado sensível** pela
 
 ## 🟢 Melhorias de estrutura
 
-### [ ] 10. Código morto em `user.controller.ts`
+### [X] 10. Código morto em `user.controller.ts`
 
 - **Onde:** `src/modules/user/user.controller.ts` (`signin` e `me`)
 - **Problema:** os handlers não estão mais em nenhuma rota; os que estão em uso ficam em `auth.controller.ts`.
 - **Correção:** remover os handlers e ajustar `tests/controllers/userController.spec.ts`, se necessário.
 - **Commit sugerido:** `refactor(users): remove unused auth handlers`
+- **Resolução:** `signin` e `me` removidos do `user.controller.ts`. Os testes deles foram movidos para `tests/controllers/authController.spec.ts`, agora contra o `auth.controller.ts` (que não tinha testes), e ganharam um caso para o `signout`.
 
 ### [ ] 11. README desatualizado
 
