@@ -12,8 +12,6 @@ export const comparePassword = async (
   return await bcrypt.compare(password, hashPassword);
 };
 
-// Tokens de uso único enviados por e-mail: o valor original vai só no link e
-// no banco fica apenas o hash
 export const generateRandomToken = () => {
   return randomBytes(32).toString("hex");
 };

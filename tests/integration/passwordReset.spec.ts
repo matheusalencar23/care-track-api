@@ -41,8 +41,6 @@ describe("password reset", () => {
       expect.stringContaining(`?token=${token}`),
     );
 
-    // O `iat` do JWT é em segundos: garante que a troca de senha caia num
-    // segundo posterior ao do login acima
     await new Promise((resolve) => setTimeout(resolve, 1100));
 
     const reset = await request(app)
@@ -68,8 +66,6 @@ describe("password reset", () => {
       .send({ email: userData.email });
     const firstToken = await waitForPasswordResetToken();
 
-    // Pula o intervalo mínimo entre envios (pela coleção, já que o Mongoose
-    // não deixa alterar o createdAt)
     await PasswordResetToken.collection.updateMany(
       { userId: user._id },
       { $set: { createdAt: new Date(Date.now() - 5 * 60 * 1000) } },

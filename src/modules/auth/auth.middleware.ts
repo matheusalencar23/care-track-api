@@ -7,8 +7,6 @@ import {
   HttpException,
 } from "../../shared/exceptions/index.js";
 
-// O `iat` do JWT é em segundos: compara com a troca de senha arredondada para
-// baixo, para não rejeitar um token emitido logo depois dela
 const isIssuedBeforePasswordChange = (
   issuedAt: number | undefined,
   passwordChangedAt: Date | null,

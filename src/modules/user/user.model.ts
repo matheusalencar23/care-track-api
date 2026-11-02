@@ -9,8 +9,6 @@ export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
-  // Número de inscrição no COREN e a UF do conselho regional: identificam a
-  // enfermeira como autora dos registros (normas de registro do COFEN)
   coren: string;
   corenState: BrazilianState;
   emailVerifiedAt: Date | null;

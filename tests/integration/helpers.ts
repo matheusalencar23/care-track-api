@@ -15,8 +15,6 @@ export const userData = {
   corenState: "SP" as const,
 };
 
-// Cria direto no banco um usuário com o e-mail já confirmado, sem passar
-// pelas rotas (e sem consumir os rate limits)
 export const createVerifiedUser = async (
   overrides: Partial<typeof userData> = {},
 ) => {
@@ -30,8 +28,6 @@ export const createVerifiedUser = async (
 const tokenFromUrl = (url: unknown) =>
   new URL(String(url)).searchParams.get("token");
 
-// O e-mail de confirmação é enviado sem bloquear a resposta do signup, então
-// espera a chamada do mock antes de ler o link
 export const waitForConfirmationToken = async () => {
   return await vi.waitFor(() => {
     const call = vi.mocked(sendConfirmationEmail).mock.lastCall;

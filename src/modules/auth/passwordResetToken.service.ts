@@ -26,8 +26,6 @@ export const isOnResendCooldown = async (userId: string) => {
   );
 };
 
-// Só verifica o token, sem consumi-lo: quem chama invalida os tokens depois
-// de gravar a nova senha.
 export const findValidToken = async (token: string) => {
   const tokenHash = hashToken(token);
   const passwordResetToken =
@@ -44,8 +42,6 @@ export const findValidToken = async (token: string) => {
   return passwordResetToken;
 };
 
-// Invalida todos os tokens pendentes do usuário (inclusive o que acabou de
-// ser usado), para que links antigos não sirvam depois da troca de senha
 export const invalidateUserTokens = async (userId: string) => {
   await passwordResetTokenRepository.markAllAsUsedByUserId(userId, new Date());
 };

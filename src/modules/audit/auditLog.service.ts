@@ -10,9 +10,6 @@ interface AuditEntry {
   patientId?: string;
 }
 
-// Grava quem fez o quê, em qual recurso e quando; o requestId e o IP vêm do
-// contexto da requisição. Quem chama deve aguardar: se a auditoria falhar, a
-// operação também falha, para que nenhum acesso fique sem registro.
 export const record = async (entry: AuditEntry) => {
   const context = getRequestContext();
 

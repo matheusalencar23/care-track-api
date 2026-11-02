@@ -35,8 +35,6 @@ export const login = async (email: string, password: string) => {
   return token;
 };
 
-// Nunca indica se o e-mail existe: quem chama responde 200 em todos os casos.
-// O envio não bloqueia a resposta, para que o tempo dela também não revele.
 export const requestPasswordReset = async (email: string) => {
   const user = await userRepository.findByEmail(email);
 
@@ -67,12 +65,9 @@ export const resetPassword = async (token: string, password: string) => {
   const now = new Date();
   user.password = password;
   user.passwordChangedAt = now;
-  // O link chegou pelo e-mail da conta, o que também comprova o endereço
   user.emailVerifiedAt ??= now;
   await user.save();
 
-  // Os tokens só são consumidos depois que a nova senha foi gravada: se algo
-  // falhar antes, o mesmo link continua funcionando.
   await passwordResetTokenService.invalidateUserTokens(user.id);
   await auditLogService.record({
     userId: user.id,

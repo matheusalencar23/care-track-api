@@ -4,7 +4,6 @@ import { describe, it } from "vitest";
 import app from "../../src/app.js";
 import { API, createVerifiedUser, userData } from "./helpers.js";
 
-// Os contadores são zerados depois de cada teste (tests/integration/setup.ts)
 describe("rate limits", () => {
   it("should not apply the signin limit to the session routes", async () => {
     await createVerifiedUser();

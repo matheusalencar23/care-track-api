@@ -97,7 +97,6 @@ export const forgotPassword = async (req: Request, res: Response) => {
     }
   }
 
-  // Sempre 200, para não permitir enumeração de usuários
   return res.json();
 };
 
@@ -112,8 +111,6 @@ export const resetPassword = async (
   try {
     await authService.resetPassword(token, password);
 
-    // Sessões abertas antes da troca deixam de valer (ver
-    // authenticationMiddleware); remove também o cookie deste navegador
     res.clearCookie("token", {
       httpOnly: true,
       secure: NODE_ENV === "production",

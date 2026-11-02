@@ -191,8 +191,6 @@ describe("authService", () => {
       });
     });
 
-    // A resposta não espera o envio; se o `.catch` for removido, a rejeição
-    // fica sem tratamento e o Vitest falha a execução
     it("should not fail when sending the email fails", async () => {
       vi.mocked(userRepository.findByEmail).mockResolvedValue({
         id: "123",

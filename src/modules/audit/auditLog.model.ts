@@ -25,7 +25,6 @@ export interface IAuditLog extends Document {
 
 const auditLogSchema = new mongoose.Schema<IAuditLog>(
   {
-    // Quem fez a ação
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -36,7 +35,6 @@ const auditLogSchema = new mongoose.Schema<IAuditLog>(
       required: true,
       enum: AUDIT_ACTIONS,
     },
-    // O que foi acessado ou alterado
     resourceType: {
       type: String,
       required: true,
@@ -46,8 +44,6 @@ const auditLogSchema = new mongoose.Schema<IAuditLog>(
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
-    // Paciente a que o recurso pertence, para o relatório de acessos por
-    // paciente (Fase 4) sem precisar resolver cada recurso
     patientId: {
       type: mongoose.Schema.Types.ObjectId,
       default: null,
@@ -69,9 +65,6 @@ const auditLogSchema = new mongoose.Schema<IAuditLog>(
 auditLogSchema.index({ userId: 1, createdAt: -1 });
 auditLogSchema.index({ patientId: 1, createdAt: -1 });
 
-// A coleção é só de inclusão: o Mongoose recusa qualquer alteração ou
-// exclusão feita pela aplicação. Em produção, o usuário do banco usado pela
-// API também deve ter só `insert` e `find` nesta coleção.
 const rejectChange = () => {
   throw new Error("Audit logs are append-only");
 };
