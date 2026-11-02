@@ -3,15 +3,12 @@ import userRoutes from "./modules/user/user.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import mongoose from "mongoose";
 import { APP_VERSION } from "./config/appInfo.js";
-import {
-  authLimiter,
-  generalLimiter,
-} from "./middlewares/rateLimit.middleware.js";
+import { generalLimiter } from "./middlewares/rateLimit.middleware.js";
 
 const routes = Router();
 
 routes.use("/users", generalLimiter, userRoutes);
-routes.use("/auth", authLimiter, authRoutes);
+routes.use("/auth", generalLimiter, authRoutes);
 
 routes.get("/health", (_req, res) => {
   const isDbConnected = mongoose.connection.readyState === 1;

@@ -52,15 +52,15 @@ Commits seguem o padrão Conventional Commits, validado pelo commitlint — ver 
 
 Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um cookie httpOnly `token` (JWT válido por 1h), gravado no signin; não há header `Authorization`.
 
-| Método | Rota                            | Descrição                              | Autenticado | Rate limit      |
-| ------ | ------------------------------- | -------------------------------------- | ----------- | --------------- |
-| POST   | `/api/v1/users/signup`          | Cria uma conta                         | não         | 100/h           |
-| GET    | `/api/v1/users/validate?token=` | Confirma o e-mail                      | não         | 100/h           |
-| POST   | `/api/v1/users/resend`          | Reenvia o e-mail de confirmação        | não         | 100/h e 5/15min |
-| POST   | `/api/v1/auth/signin`           | Login, grava o cookie de autenticação  | não         | 10/15min        |
-| POST   | `/api/v1/auth/signout`          | Logout, remove o cookie                | sim         | 10/15min        |
-| GET    | `/api/v1/auth/me`               | Retorna o usuário autenticado          | sim         | 10/15min        |
-| GET    | `/api/v1/health`                | Health check (API, banco e versão)     | não         | —               |
+| Método | Rota                            | Descrição                             | Autenticado | Rate limit       |
+| ------ | ------------------------------- | ------------------------------------- | ----------- | ---------------- |
+| POST   | `/api/v1/users/signup`          | Cria uma conta                        | não         | 100/h            |
+| GET    | `/api/v1/users/validate?token=` | Confirma o e-mail                     | não         | 100/h            |
+| POST   | `/api/v1/users/resend`          | Reenvia o e-mail de confirmação       | não         | 100/h e 5/15min  |
+| POST   | `/api/v1/auth/signin`           | Login, grava o cookie de autenticação | não         | 100/h e 10/15min |
+| POST   | `/api/v1/auth/signout`          | Logout, remove o cookie               | sim         | 100/h            |
+| GET    | `/api/v1/auth/me`               | Retorna o usuário autenticado         | sim         | 100/h            |
+| GET    | `/api/v1/health`                | Health check (API, banco e versão)    | não         | —                |
 
 Os limites são por IP e ficam desativados com `NODE_ENV=development`. O login só é aceito depois que o e-mail for confirmado. O `/users/resend` responde 200 mesmo para e-mails não cadastrados (exceto quando estoura o limite por IP, que retorna 429) e só envia um novo e-mail se o anterior tiver mais de 60 segundos.
 

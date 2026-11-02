@@ -49,7 +49,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 
 ### Fase 0 — Base (antes de qualquer dado de paciente)
 
-- [ ] Limitar o `authLimiter` ao `signin`; `me` e `signout` passam ao `generalLimiter` (hoje o `/auth/me` estoura com 10 chamadas em 15 min).
+- [x] Limitar o `authLimiter` ao `signin`; `me` e `signout` passam ao `generalLimiter` (hoje o `/auth/me` estoura com 10 chamadas em 15 min).
 - [ ] Testes de integração: `supertest` + `mongodb-memory-server`, mock só do `email.service`, projetos separados no Vitest (`test:unit` / `test:integration`), começando pelo fluxo completo de autenticação. Lembrar que o Vitest define `NODE_ENV=test`, então os rate limiters ficam ativos.
 - [ ] Recuperação de senha (token por e-mail, no mesmo modelo do token de verificação).
 - [ ] COREN e UF no cadastro da enfermeira.
