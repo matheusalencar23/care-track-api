@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import jwt from "jsonwebtoken";
 import { authenticationMiddleware } from "../../src/modules/auth/auth.middleware.js";
 import User from "../../src/modules/user/user.model.js";
 import * as tokenUtils from "../../src/utils/token.utils.js";
@@ -101,5 +102,28 @@ describe("authenticationMiddleware", () => {
     expect(next).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 500 }),
     );
+  });
+
+  it("should call next with UnauthorizedException when the token has an invalid signature", async () => {
+    const actualTokenUtils = await vi.importActual<typeof tokenUtils>(
+      "../../src/utils/token.utils.js",
+    );
+    vi.mocked(tokenUtils.verifyToken).mockImplementation(
+      actualTokenUtils.verifyToken,
+    );
+
+    const forgedToken = jwt.sign({ _id: "123" }, "wrong-secret");
+
+    const req = createMockRequest({ cookies: { token: forgedToken } });
+    const res = createMockResponse();
+    const next = createMockNext();
+
+    await authenticationMiddleware(req, res, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+    expect(next).not.toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 500 }),
+    );
+    expect(User.findOne).not.toHaveBeenCalled();
   });
 });

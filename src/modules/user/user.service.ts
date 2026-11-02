@@ -22,7 +22,7 @@ export const createUser = async (
   }
 
   const user = await userRepository.save(name, email, password);
-  createValidationEmail(user.id, email, name);
+  createValidationEmail(user.id, email, name).catch(() => {});
 };
 
 export const validateUser = async (token: string) => {
