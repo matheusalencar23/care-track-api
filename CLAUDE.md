@@ -17,9 +17,11 @@ npx vitest run tests/services/userService.spec.ts   # um único arquivo
 npx vitest run -t "should throw when user already exists"   # um único teste pelo nome
 ```
 
-Os testes carregam as variáveis de ambiente do `.env.test` via `tests/setup.ts` (`process.loadEnvFile`). O `.env.test` está no `.gitignore`; o CI gera esse arquivo. O `src/config/secrets.ts` lança erro já no import se `JWT_SECRET`, `MONGO_DB_URL_CONNECTION`, `RESEND_API_KEY`, `RESEND_EMAIL_ORIGIN` ou `EMAIL_HOST` estiverem ausentes, então qualquer teste que importe código da aplicação precisa desse arquivo. Os testes nunca acessam um banco real — repositórios e serviços são mockados com `vi.mock`.
+Os testes carregam as variáveis de ambiente do `.env.test` via `tests/setup.ts` (`process.loadEnvFile`). O `.env.test` é versionado (só valores fictícios) e é o mesmo usado no CI: ao criar uma variável obrigatória nova, adicione-a nele também. O `src/config/secrets.ts` lança erro já no import se `JWT_SECRET`, `MONGO_DB_URL_CONNECTION`, `RESEND_API_KEY`, `RESEND_EMAIL_ORIGIN` ou `EMAIL_HOST` estiverem ausentes, então qualquer teste que importe código da aplicação precisa desse arquivo. Os testes nunca acessam um banco real — repositórios e serviços são mockados com `vi.mock`.
 
 Git hooks (husky): `pre-commit` roda lint + test + build; `commit-msg` roda o commitlint (Conventional Commits, regras em `docs/commits.md`). As mensagens de commit alimentam o semantic-release na `master` (`feat` → minor, `fix` → patch, `!`/`BREAKING CHANGE` → major), que em seguida faz o build e publica a imagem Docker em `ghcr.io/matheusalencar23/care-track-api`. O desenvolvimento acontece na `develop`; os PRs têm como alvo a `master`.
+
+CI/CD (`.github/workflows/`): o `ci.yml` roda em PRs para `master`/`develop` e em push na `develop` — `npm run check`, commitlint sobre os commits do PR (e rejeição de mensagens vazias, que o commitlint ignora) e build da imagem Docker sem push. O `release-docker.yml` (push na `master`) chama o `ci.yml` e só então roda o semantic-release, que também grava a versão no `package.json` do workspace (`@semantic-release/npm` com `npmPublish: false`, sem commit) e publica a imagem no GHCR. Não há deploy: o fluxo termina no GHCR. A versão do Node fica no `.nvmrc` (e no `ARG NODE_VERSION` do Dockerfile, que deve acompanhar).
 
 ## Arquitetura
 
