@@ -1,36 +1,108 @@
 name: CI
 
 on:
-    pull_request:
-        branches:
-            - master
+  pull_request:
+    branches:
+      - master
+      - develop
+  push:
+    branches:
+      - develop
+  # Chamado pelo release-docker.yml antes de publicar
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Não cancela quando chamado pelo release: o próprio release controla isso
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
+
+env:
+  HUSKY: 0
 
 jobs:
-    check:
-        name: Check
-        runs-on: ubuntu-latest
+  check:
+    name: Lint, test & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                node-version: 22
-                cache: npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
 
-            - name: Install dependencies
-              run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-            - name: Create test environment
-              run: |
-                echo "ENV=test" >> .env.test
-                echo "JWT_SECRET=test-secret" >> .env.test
-                echo "MONGO_DB_URL_CONNECTION=mongodb://localhost:27017/care-track-test" >> .env.test
-                echo "EMAIL_HOST=http://localhost:3000/verify-email" >> .env.test
-                echo "RESEND_API_KEY=test-resend-api-key" >> .env.test
-                echo "RESEND_EMAIL_ORIGIN=test@example.com" >> .env.test
+      - name: Check
+        run: npm run check
 
-            - name: Check
-              run: npm run check
+  commits:
+    name: Commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # O commitlint ignora commits com mensagem vazia ao analisar um intervalo
+      - name: Reject empty commit messages
+        run: |
+          EMPTY=$(git log --format='%h %s' \
+            "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" \
+            | awk 'NF == 1')
+          if [ -n "$EMPTY" ]; then
+            echo "Commits com mensagem vazia:"
+            echo "$EMPTY"
+            exit 1
+          fi
+
+      - name: Lint commit messages
+        run: >
+          npx commitlint
+          --from ${{ github.event.pull_request.base.sha }}
+          --to ${{ github.event.pull_request.head.sha }}
+          --verbose
+
+  docker:
+    name: Docker build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Garante que o Dockerfile funciona antes do merge; o release só gera a
+      # imagem depois de criar a tag
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
