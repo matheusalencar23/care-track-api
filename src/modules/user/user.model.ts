@@ -6,6 +6,7 @@ export interface IUser extends Document {
   email: string;
   password: string;
   emailVerifiedAt: Date | null;
+  passwordChangedAt: Date | null;
   authenticate: (password: string) => Promise<boolean>;
 }
 
@@ -28,6 +29,10 @@ const userSchema = new mongoose.Schema<IUser>(
       required: true,
     },
     emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+    passwordChangedAt: {
       type: Date,
       default: null,
     },

@@ -1,7 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { sendConfirmationEmail } from "../../src/services/email/email.service.js";
+import {
+  sendConfirmationEmail,
+  sendPasswordResetEmail,
+} from "../../src/services/email/email.service.js";
 
 const { send } = vi.hoisted(() => ({ send: vi.fn() }));
 
@@ -78,6 +81,36 @@ describe("emailService", () => {
       ).rejects.toThrow("ENOENT");
 
       expect(send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("sendPasswordResetEmail", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it("should render the reset template replacing name and reset url", async () => {
+      vi.mocked(readFile).mockResolvedValue(
+        "<p>Hi {{name}}, reset at {{resetUrl}} ({{resetUrl}})</p>" as never,
+      );
+      send.mockResolvedValue({ data: { id: "email-1" }, error: null });
+
+      await sendPasswordResetEmail(
+        "john@example.com",
+        "John Doe",
+        "https://app.example.com/reset?token=abc",
+      );
+
+      expect(vi.mocked(readFile).mock.calls[0]?.[0]).toMatch(
+        /templates[/\\]reset-password\.html$/,
+      );
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "john@example.com",
+          subject: expect.any(String),
+          html: "<p>Hi John Doe, reset at https://app.example.com/reset?token=abc (https://app.example.com/reset?token=abc)</p>",
+        }),
+      );
     });
   });
 });

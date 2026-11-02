@@ -1,10 +1,17 @@
-import { findByEmail } from "../user/user.repository.js";
-import { BadRequestException } from "../../shared/exceptions/index.js";
+import * as userRepository from "../user/user.repository.js";
+import * as passwordResetTokenService from "./passwordResetToken.service.js";
+import {
+  BadRequestException,
+  UnprocessableEntityException,
+} from "../../shared/exceptions/index.js";
 import { generateToken } from "../../utils/token.utils.js";
 import { messages } from "../../shared/messages.js";
+import { sendPasswordResetEmail } from "../../services/email/email.service.js";
+import { PASSWORD_RESET_HOST } from "../../config/secrets.js";
+import { AppLogger } from "../../shared/appLogger.js";
 
 export const login = async (email: string, password: string) => {
-  const user = await findByEmail(email);
+  const user = await userRepository.findByEmail(email);
 
   if (!user || !user.emailVerifiedAt) {
     throw new BadRequestException(messages.INVALID_CREDENTIALS);
@@ -18,4 +25,70 @@ export const login = async (email: string, password: string) => {
 
   const token = generateToken({ _id: user._id });
   return token;
+};
+
+// Nunca indica se o e-mail existe: quem chama responde 200 em todos os casos.
+// O envio não bloqueia a resposta, para que o tempo dela também não revele.
+export const requestPasswordReset = async (email: string) => {
+  const user = await userRepository.findByEmail(email);
+
+  if (!user) {
+    AppLogger.info("Password reset requested for unknown email");
+    return;
+  }
+
+  if (await passwordResetTokenService.isOnResendCooldown(user.id)) {
+    AppLogger.info("Password reset on cooldown", { userId: user.id });
+    return;
+  }
+
+  createPasswordResetEmail(user.id, email, user.name).catch(() => {});
+};
+
+export const resetPassword = async (token: string, password: string) => {
+  const passwordResetToken =
+    await passwordResetTokenService.findValidToken(token);
+  const user = await userRepository.findById(
+    passwordResetToken.userId.toString(),
+  );
+
+  if (!user) {
+    throw new UnprocessableEntityException("Invalid token!", []);
+  }
+
+  const now = new Date();
+  user.password = password;
+  user.passwordChangedAt = now;
+  // O link chegou pelo e-mail da conta, o que também comprova o endereço
+  user.emailVerifiedAt ??= now;
+  await user.save();
+
+  // Os tokens só são consumidos depois que a nova senha foi gravada: se algo
+  // falhar antes, o mesmo link continua funcionando.
+  await passwordResetTokenService.invalidateUserTokens(user.id);
+  AppLogger.info("Password reset", { userId: user.id });
+};
+
+const createPasswordResetEmail = async (
+  userId: string,
+  email: string,
+  name: string,
+) => {
+  try {
+    const passwordResetToken =
+      await passwordResetTokenService.createPasswordResetToken(userId);
+
+    await sendPasswordResetEmail(
+      email,
+      name,
+      `${PASSWORD_RESET_HOST}?token=${passwordResetToken}`,
+    );
+  } catch (err) {
+    AppLogger.error("Error sending password reset email", { userId });
+    if (err instanceof Error && err.stack) {
+      AppLogger.error(err.stack);
+    }
+
+    throw err;
+  }
 };

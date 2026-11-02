@@ -7,6 +7,22 @@ import {
   HttpException,
 } from "../../shared/exceptions/index.js";
 
+// O `iat` do JWT é em segundos: compara com a troca de senha arredondada para
+// baixo, para não rejeitar um token emitido logo depois dela
+const isIssuedBeforePasswordChange = (
+  issuedAt: number | undefined,
+  passwordChangedAt: Date | null,
+) => {
+  if (!passwordChangedAt) {
+    return false;
+  }
+
+  return (
+    issuedAt === undefined ||
+    issuedAt < Math.floor(passwordChangedAt.getTime() / 1000)
+  );
+};
+
 export const authenticationMiddleware = async (
   req: Request,
   res: Response,
@@ -29,6 +45,12 @@ export const authenticationMiddleware = async (
     });
 
     if (!user) {
+      return next(new UnauthorizedException("Invalid token"));
+    }
+
+    if (
+      isIssuedBeforePasswordChange(verifiedToken.iat, user.passwordChangedAt)
+    ) {
       return next(new UnauthorizedException("Invalid token"));
     }
 

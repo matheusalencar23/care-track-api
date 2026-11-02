@@ -1,13 +1,13 @@
-import { createHash, randomBytes } from "node:crypto";
 import * as emailVerificationTokenRepository from "./emailVerificationToken.repository.js";
 import type { IEmailVerificationToken } from "./emailVerificationToken.model.js";
 import { UnprocessableEntityException } from "../../shared/exceptions/index.js";
+import { generateRandomToken, hashToken } from "../../utils/crypt.utils.js";
 
 export const RESEND_COOLDOWN_MS = 60 * 1000;
 
 export const createEmailVerificationToken = async (userId: string) => {
-  const token = randomBytes(32).toString("hex");
-  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const token = generateRandomToken();
+  const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
   await emailVerificationTokenRepository.save(userId, tokenHash, expiresAt);
   return token;
@@ -27,7 +27,7 @@ export const isOnResendCooldown = async (userId: string) => {
 // Só verifica o token, sem consumi-lo: quem chama decide quando marcá-lo
 // como usado (depois de concluir a operação que ele autoriza).
 export const findValidToken = async (token: string) => {
-  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const tokenHash = hashToken(token);
   const emailVerificationToken =
     await emailVerificationTokenRepository.findByToken(tokenHash);
   const invalidToken =

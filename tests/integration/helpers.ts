@@ -1,6 +1,9 @@
 import { vi } from "vitest";
 import User from "../../src/modules/user/user.model.js";
-import { sendConfirmationEmail } from "../../src/services/email/email.service.js";
+import {
+  sendConfirmationEmail,
+  sendPasswordResetEmail,
+} from "../../src/services/email/email.service.js";
 
 export const API = "/api/v1";
 
@@ -32,6 +35,16 @@ export const waitForConfirmationToken = async () => {
     const call = vi.mocked(sendConfirmationEmail).mock.lastCall;
     if (!call) {
       throw new Error("Confirmation email was not sent");
+    }
+    return tokenFromUrl(call[2]);
+  });
+};
+
+export const waitForPasswordResetToken = async () => {
+  return await vi.waitFor(() => {
+    const call = vi.mocked(sendPasswordResetEmail).mock.lastCall;
+    if (!call) {
+      throw new Error("Password reset email was not sent");
     }
     return tokenFromUrl(call[2]);
   });

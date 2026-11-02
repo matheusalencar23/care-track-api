@@ -4,9 +4,7 @@ import { describe, it } from "vitest";
 import app from "../../src/app.js";
 import { API, createVerifiedUser, userData } from "./helpers.js";
 
-// O Vitest roda com NODE_ENV=test, então os rate limiters ficam ativos. Os
-// contadores ficam em memória e duram o arquivo inteiro: cada teste daqui
-// precisa levar em conta as requisições dos anteriores.
+// Os contadores são zerados depois de cada teste (tests/integration/setup.ts)
 describe("rate limits", () => {
   it("should not apply the signin limit to the session routes", async () => {
     await createVerifiedUser();
@@ -28,8 +26,7 @@ describe("rate limits", () => {
         .post(`${API}/auth/signin`)
         .send({ email: userData.email, password: "wrong-password" });
 
-    // Uma tentativa já foi feita no teste anterior
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 10; i++) {
       await attempt().expect(400);
     }
 
