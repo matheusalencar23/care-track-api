@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- Node 22+ (versão usada no CI e na imagem: `.nvmrc`)
+- Node `^22.14.0 || >=24.10.0` (exigência do semantic-release; versão usada no CI e na imagem: `.nvmrc`)
 - MongoDB
 
 ## Configuração
