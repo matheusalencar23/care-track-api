@@ -20,7 +20,7 @@ export const sendConfirmationEmail = async (
   name: string,
   confirmationUrl: string,
 ) => {
-  AppLogger.info(`Sending confirmation email to ${to}`);
+  AppLogger.info("Sending confirmation email...");
 
   let html = await getEmailTemplate("confirm-registration");
   html = html

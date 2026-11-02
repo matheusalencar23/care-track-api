@@ -22,6 +22,8 @@ export const createUser = async (
   }
 
   const user = await userRepository.save(name, email, password);
+  AppLogger.info(`User created {userId=${user.id}}`);
+
   createValidationEmail(user.id, email, name).catch(() => {});
 };
 
@@ -73,7 +75,7 @@ const createValidationEmail = async (
       `${EMAIL_HOST}?token=${emailVerificationToken}`,
     );
   } catch (err) {
-    AppLogger.error("Error sending confirmation email to: " + email);
+    AppLogger.error(`Error sending confirmation email {userId=${userId}}`);
     if (err instanceof Error && err.stack) {
       AppLogger.error(err.stack);
     }

@@ -116,7 +116,7 @@ describe("userService", () => {
 
       await vi.waitFor(() => {
         expect(AppLogger.error).toHaveBeenCalledWith(
-          "Error sending confirmation email to: john@example.com",
+          "Error sending confirmation email {userId=123}",
         );
       });
     });
@@ -138,7 +138,7 @@ describe("userService", () => {
 
       await vi.waitFor(() => {
         expect(AppLogger.error).toHaveBeenCalledWith(
-          "Error sending confirmation email to: john@example.com",
+          "Error sending confirmation email {userId=123}",
         );
       });
 

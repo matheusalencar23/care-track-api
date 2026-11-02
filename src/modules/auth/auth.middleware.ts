@@ -42,7 +42,7 @@ export const authenticationMiddleware = async (
       return next(err);
     }
 
-    AppLogger.error(`Authentication error: ${err}}`);
+    AppLogger.error(`Authentication error: ${err}`);
     return next(new HttpException("Internal Server Error", 500, null));
   }
 };

@@ -14,7 +14,7 @@ export const signup = async (
   next: NextFunction,
 ) => {
   const { name, email, password } = req.body;
-  AppLogger.info(`Create user {name=${name}, email=${email}}`);
+  AppLogger.info("Creating user...");
 
   try {
     await userService.createUser(name, email, password);
@@ -24,7 +24,7 @@ export const signup = async (
       email,
     });
   } catch (err) {
-    AppLogger.error(`Error creating user: ${err}}`);
+    AppLogger.error(`Error creating user: ${err}`);
     return next(err);
   }
 };
@@ -35,7 +35,7 @@ export const signin = async (
   next: NextFunction,
 ) => {
   const { email, password } = req.body;
-  AppLogger.info(`Logging in {email=${email}}`);
+  AppLogger.info("Logging in...");
 
   try {
     const token = await login(email, password);
@@ -97,7 +97,7 @@ export const validate = async (
 
 export const resendValidation = async (req: Request, res: Response) => {
   const { email } = req.body;
-  AppLogger.info(`Resending confirmation email {email=${email}}`);
+  AppLogger.info("Resending confirmation email...");
 
   try {
     await userService.resendValidation(email);

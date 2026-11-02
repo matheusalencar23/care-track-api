@@ -10,7 +10,7 @@ export const signin = async (
   next: NextFunction,
 ) => {
   const { email, password } = req.body;
-  AppLogger.info(`Signing in {email=${email}}`);
+  AppLogger.info("Signing in...");
 
   try {
     const token = await login(email, password);
