@@ -4,11 +4,13 @@ import express from "express";
 import helmet from "helmet";
 import { CORS_ORIGIN } from "./config/secrets.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
+import { requestLoggerMiddleware } from "./middlewares/requestLogger.middleware.js";
 import routes from "./routes.js";
 
 const app = express();
 
 app.set("trust proxy", 1);
+app.use(requestLoggerMiddleware);
 app.use(helmet());
 app.use(
   cors({

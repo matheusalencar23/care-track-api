@@ -14,12 +14,17 @@ export const errorMiddleware = (
 ) => {
   if (isDuplicateKeyError(err)) {
     const conflict = new ConflictException("Conflict");
-    AppLogger.error(`${conflict.statusCode} - Duplicate key error`);
+    AppLogger.warn("Duplicate key error", { statusCode: conflict.statusCode });
     return res.status(conflict.statusCode).json(conflict.toJson());
   }
 
   if (err instanceof HttpException) {
-    AppLogger.error(`${err.statusCode} - ${err.message}`);
+    const context = { statusCode: err.statusCode };
+    if (err.statusCode >= 500) {
+      AppLogger.error(err.message, context);
+    } else {
+      AppLogger.warn(err.message, context);
+    }
     return res.status(err.statusCode).json(err.toJson());
   }
 

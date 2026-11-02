@@ -17,7 +17,9 @@ vi.mock("node:fs/promises", () => ({
 
 vi.mock("../../src/shared/appLogger.js", () => ({
   AppLogger: {
+    debug: vi.fn(),
     info: vi.fn(),
+    warn: vi.fn(),
     error: vi.fn(),
   },
 }));

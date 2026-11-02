@@ -1,19 +1,28 @@
 import mongoose from "mongoose";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { errorMiddleware } from "../../src/middlewares/error.middleware.js";
-import { NotFoundException } from "../../src/shared/exceptions/index.js";
+import {
+  HttpException,
+  NotFoundException,
+} from "../../src/shared/exceptions/index.js";
 import { AppLogger } from "../../src/shared/appLogger.js";
 import { createMockRequest, createMockResponse } from "../helpers/expressMock.js";
 
 vi.mock("../../src/shared/appLogger.js", () => ({
   AppLogger: {
+    debug: vi.fn(),
     info: vi.fn(),
+    warn: vi.fn(),
     error: vi.fn(),
   },
 }));
 
 describe("errorMiddleware", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("should respond with the exception's own status code and json when it is an HttpException", () => {
     const req = createMockRequest({});
     const res = createMockResponse();
@@ -70,8 +79,43 @@ describe("errorMiddleware", () => {
     );
 
     const responseBody = JSON.stringify(vi.mocked(res.json).mock.calls);
-    const logged = JSON.stringify(vi.mocked(AppLogger.error).mock.calls);
+    const logged = JSON.stringify([
+      ...vi.mocked(AppLogger.warn).mock.calls,
+      ...vi.mocked(AppLogger.error).mock.calls,
+    ]);
     expect(responseBody).not.toContain("john@example.com");
     expect(logged).not.toContain("john@example.com");
+  });
+
+  it("should log client errors (4xx) as warn", () => {
+    const res = createMockResponse();
+
+    errorMiddleware(
+      new NotFoundException("User not found!"),
+      createMockRequest({}),
+      res,
+      vi.fn(),
+    );
+
+    expect(AppLogger.warn).toHaveBeenCalledWith("User not found!", {
+      statusCode: 404,
+    });
+    expect(AppLogger.error).not.toHaveBeenCalled();
+  });
+
+  it("should log server errors (5xx) as error", () => {
+    const res = createMockResponse();
+
+    errorMiddleware(
+      new HttpException("Internal Server Error", 500, null),
+      createMockRequest({}),
+      res,
+      vi.fn(),
+    );
+
+    expect(AppLogger.error).toHaveBeenCalledWith("Internal Server Error", {
+      statusCode: 500,
+    });
+    expect(AppLogger.warn).not.toHaveBeenCalled();
   });
 });

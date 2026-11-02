@@ -101,12 +101,13 @@ O projeto vai tratar dados de saúde, classificados como **dado sensível** pela
 - **Commit sugerido:** `docs: update endpoints table`
 - **Resolução:** tabela de endpoints corrigida (rotas de auth em `/api/v1/auth`, `signout` incluído, coluna de rate limit), blocos de código que estavam escapados (`\`\`\``) corrigidos, `NODE_ENV` e `.env.test` documentados e seção de deploy ajustada: a imagem só é publicada quando o semantic-release gera versão.
 
-### [ ] 12. Logger limitado
+### [X] 12. Logger limitado
 
 - **Onde:** `src/shared/appLogger.ts`, `src/middlewares/error.middleware.ts`
 - **Problema:** o `AppLogger` só aceita string e não tem `warn` nem `debug`. Não há log por requisição nem request id. O `errorMiddleware` registra 4xx como `error`.
 - **Correção:** aceitar objetos (log estruturado), adicionar `warn`/`debug`, usar `pino-http` com request id e registrar 4xx como `warn`.
 - **Commit sugerido:** `feat: improve structured logging`
+- **Resolução:** `AppLogger` com `debug`/`info`/`warn`/`error` e contexto estruturado (`AppLogger.info("User created", { userId })`), nível configurável por `LOG_LEVEL`. Em vez do `pino-http`, um `requestLoggerMiddleware` próprio (sem dependência nova): gera ou reaproveita o `x-request-id`, devolve no header da resposta e registra método, caminho sem query string (o `/users/validate` leva o token na query), status e duração. O `requestId` entra em todas as linhas de log da requisição via `AsyncLocalStorage` (`src/shared/requestContext.ts`). O `errorMiddleware` registra 4xx como `warn`. Pendente: os demais logs ainda interpolam `${err}` na mensagem em vez de usar o contexto.
 
 ### [ ] 13. Faltam testes de integração
 

@@ -17,7 +17,7 @@ Copie `.env.example` para `.env` e preencha:
 - `RESEND_API_KEY` — chave da API do Resend
 - `RESEND_EMAIL_ORIGIN` — remetente dos e-mails transacionais
 
-`NODE_ENV` é opcional e vale `development` por padrão. Em `development` os rate limits ficam desativados; em `production` o cookie de autenticação passa a exigir HTTPS (`secure`).
+`LOG_LEVEL` é opcional (`debug`, `info`, `warn`, `error`; padrão `info`). `NODE_ENV` é opcional e vale `development` por padrão. Em `development` os rate limits ficam desativados; em `production` o cookie de autenticação passa a exigir HTTPS (`secure`).
 
 ## Rodando localmente
 

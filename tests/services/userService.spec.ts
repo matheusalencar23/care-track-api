@@ -16,7 +16,9 @@ import { AppLogger } from "../../src/shared/appLogger.js";
 
 vi.mock("../../src/shared/appLogger.js", () => ({
   AppLogger: {
+    debug: vi.fn(),
     info: vi.fn(),
+    warn: vi.fn(),
     error: vi.fn(),
   },
 }));
@@ -118,7 +120,8 @@ describe("userService", () => {
 
       await vi.waitFor(() => {
         expect(AppLogger.error).toHaveBeenCalledWith(
-          "Error sending confirmation email {userId=123}",
+          "Error sending confirmation email",
+          { userId: "123" },
         );
       });
     });
@@ -140,7 +143,8 @@ describe("userService", () => {
 
       await vi.waitFor(() => {
         expect(AppLogger.error).toHaveBeenCalledWith(
-          "Error sending confirmation email {userId=123}",
+          "Error sending confirmation email",
+          { userId: "123" },
         );
       });
 

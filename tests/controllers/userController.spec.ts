@@ -25,7 +25,9 @@ vi.mock("../../src/modules/user/user.service.js", () => ({
 
 vi.mock("../../src/shared/appLogger.js", () => ({
   AppLogger: {
+    debug: vi.fn(),
     info: vi.fn(),
+    warn: vi.fn(),
     error: vi.fn(),
   },
 }));
