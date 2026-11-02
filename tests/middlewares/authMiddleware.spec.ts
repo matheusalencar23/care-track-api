@@ -64,6 +64,8 @@ describe("authenticationMiddleware", () => {
       name: "John Doe",
       email: "john@example.com",
       password: "hashed-password",
+      coren: "123456",
+      corenState: "SP",
     } as never);
 
     const req = createMockRequest({ cookies: { token: "valid-token" } });
@@ -77,6 +79,8 @@ describe("authenticationMiddleware", () => {
       id: "123",
       name: "John Doe",
       email: "john@example.com",
+      coren: "123456",
+      corenState: "SP",
     });
     expect(next).toHaveBeenCalledWith();
   });

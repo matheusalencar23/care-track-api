@@ -74,6 +74,8 @@ Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um c
 
 Os limites são por IP e ficam desativados com `NODE_ENV=development`. O login só é aceito depois que o e-mail for confirmado. O `/users/resend` responde 200 mesmo para e-mails não cadastrados (exceto quando estoura o limite por IP, que retorna 429) e só envia um novo e-mail se o anterior tiver mais de 60 segundos.
 
+O `signup` recebe `{ name, email, password, coren, corenState }`: `coren` é o número de inscrição (só dígitos) e `corenState` a UF do conselho regional (`SP`, `RJ`...). Os dois voltam também no `/auth/me` e identificam a enfermeira como autora dos registros.
+
 Recuperação de senha: o `/auth/forgot-password` segue as mesmas regras do `/users/resend` (sempre 200, intervalo de 60 segundos) e envia um link `PASSWORD_RESET_HOST?token=...` válido por 30 minutos. O front-end envia esse token com a nova senha (`{ token, password }`) ao `/auth/reset-password`. A troca invalida todos os links de redefinição pendentes e todas as sessões abertas antes dela; se o e-mail ainda não tinha sido confirmado, passa a constar como confirmado (o link chegou por ele).
 
 ## Deploy

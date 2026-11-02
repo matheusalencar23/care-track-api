@@ -58,6 +58,8 @@ export const authenticationMiddleware = async (
       id: user.id,
       name: user.name,
       email: user.email,
+      coren: user.coren,
+      corenState: user.corenState,
     };
     next();
   } catch (err) {

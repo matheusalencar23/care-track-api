@@ -107,6 +107,8 @@ describe("me", () => {
         id: "123",
         name: "John Doe",
         email: "john@example.com",
+        coren: "123456",
+        corenState: "SP",
       },
     });
 
@@ -118,6 +120,8 @@ describe("me", () => {
     expect(res.json).toHaveBeenCalledWith({
       name: "John Doe",
       email: "john@example.com",
+      coren: "123456",
+      corenState: "SP",
     });
 
     expect(next).not.toHaveBeenCalled();

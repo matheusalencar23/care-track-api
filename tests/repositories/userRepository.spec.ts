@@ -18,6 +18,14 @@ const mockUserSave = (saveImpl: () => Promise<unknown>) => {
   return userDoc;
 };
 
+const userData = {
+  name: "John Doe",
+  email: "john@example.com",
+  password: "password123",
+  coren: "123456",
+  corenState: "SP" as const,
+};
+
 describe("userRepository", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -27,13 +35,9 @@ describe("userRepository", () => {
     it("should save and return the user", async () => {
       const userDoc = mockUserSave(async () => undefined);
 
-      const result = await save("John Doe", "john@example.com", "password123");
+      const result = await save(userData);
 
-      expect(User).toHaveBeenCalledWith({
-        name: "John Doe",
-        email: "john@example.com",
-        password: "password123",
-      });
+      expect(User).toHaveBeenCalledWith(userData);
       expect(userDoc.save).toHaveBeenCalledOnce();
       expect(result).toBe(userDoc);
     });
@@ -47,7 +51,7 @@ describe("userRepository", () => {
         });
       });
 
-      const promise = save("John Doe", "john@example.com", "password123");
+      const promise = save(userData);
 
       await expect(promise).rejects.toBeInstanceOf(BadRequestException);
       await expect(promise).rejects.toThrow(
@@ -61,9 +65,7 @@ describe("userRepository", () => {
         throw error;
       });
 
-      await expect(
-        save("John Doe", "john@example.com", "password123"),
-      ).rejects.toBe(error);
+      await expect(save(userData)).rejects.toBe(error);
     });
   });
 });

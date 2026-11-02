@@ -8,15 +8,23 @@ export const signup = async (
   res: Response,
   next: NextFunction,
 ) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, coren, corenState } = req.body;
   AppLogger.info("Creating user...");
 
   try {
-    await userService.createUser(name, email, password);
+    await userService.createUser({
+      name,
+      email,
+      password,
+      coren,
+      corenState,
+    });
     AppLogger.info(`User created successfully`);
     res.status(201).json({
       name,
       email,
+      coren,
+      corenState,
     });
   } catch (err) {
     AppLogger.error(`Error creating user: ${err}`);

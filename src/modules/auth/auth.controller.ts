@@ -41,6 +41,8 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
     return res.json({
       name: user.name,
       email: user.email,
+      coren: user.coren,
+      corenState: user.corenState,
     });
   } catch (err) {
     AppLogger.error(`Error getting me: ${err}`);

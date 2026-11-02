@@ -21,6 +21,8 @@ describe("authentication flow", () => {
     expect(signup.body).toEqual({
       name: userData.name,
       email: userData.email,
+      coren: userData.coren,
+      corenState: userData.corenState,
     });
 
     const stored = await User.findOne({ email: userData.email });
@@ -51,7 +53,12 @@ describe("authentication flow", () => {
 
     const me = await agent.get(`${API}/auth/me`);
     expect(me.status).toBe(200);
-    expect(me.body).toEqual({ name: userData.name, email: userData.email });
+    expect(me.body).toEqual({
+      name: userData.name,
+      email: userData.email,
+      coren: userData.coren,
+      corenState: userData.corenState,
+    });
 
     const signout = await agent.post(`${API}/auth/signout`);
     expect(signout.status).toBe(204);
@@ -95,11 +102,21 @@ describe("authentication flow", () => {
   });
 
   it("should reject an invalid signup payload", async () => {
-    const response = await request(app)
-      .post(`${API}/users/signup`)
-      .send({ name: "", email: "not-an-email", password: "short" });
+    const response = await request(app).post(`${API}/users/signup`).send({
+      name: "",
+      email: "not-an-email",
+      password: "short",
+      coren: "abc",
+      corenState: "XX",
+    });
 
     expect(response.status).toBe(422);
+    expect(response.body.errors).toEqual(
+      expect.arrayContaining([
+        "O COREN deve conter apenas números",
+        "UF do COREN inválida",
+      ]),
+    );
     expect(await User.countDocuments()).toBe(0);
   });
 

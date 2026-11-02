@@ -11,6 +11,8 @@ export const userData = {
   name: "Maria Silva",
   email: "maria@example.com",
   password: "password123",
+  coren: "123456",
+  corenState: "SP" as const,
 };
 
 // Cria direto no banco um usuário com o e-mail já confirmado, sem passar
