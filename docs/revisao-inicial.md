@@ -48,7 +48,7 @@ O projeto vai tratar dados de saúde, classificados como **dado sensível** pela
 - **Problema:** dados pessoais aparecem nos logs, como em `Create user {name=..., email=...}`. Quando chegarem os dados de pacientes, esse padrão fica perigoso.
 - **Correção:** logar apenas IDs; evitar dados pessoais nas mensagens de log.
 - **Commit sugerido:** `fix: remove personal data from logs`
-- **Resolução:** as mensagens de log não trazem mais nome nem e-mail; onde há um usuário identificado, o log usa o `userId` (ex.: `User created {userId=...}`). Pendente: mensagens de erro do Mongo interpoladas com `${err}` ainda podem conter dados (o E11000 traz o e-mail duplicado) — tratado junto com o item 9.
+- **Resolução:** as mensagens de log não trazem mais nome nem e-mail; onde há um usuário identificado, o log usa o `userId` (ex.: `User created {userId=...}`). O E11000, que traz o e-mail duplicado na mensagem, foi tratado no item 9.
 
 ### [X] 6. Senha sem regra mínima
 
@@ -74,12 +74,13 @@ O projeto vai tratar dados de saúde, classificados como **dado sensível** pela
 - **Commit sugerido:** `feat(auth): expose user id on authenticated requests`
 - **Resolução:** `req.user` agora é `{ id, name, email }` (`id` como string, via `user.id` do Mongoose). A resposta do `GET /auth/me` não mudou.
 
-### [ ] 9. E-mail duplicado em cadastros simultâneos retorna 500
+### [X] 9. E-mail duplicado em cadastros simultâneos retorna 500
 
 - **Onde:** `src/middlewares/error.middleware.ts`
 - **Problema:** a checagem `findByEmail` e o `save` não são atômicos. Dois cadastros simultâneos com o mesmo e-mail estouram com erro E11000 (chave duplicada) do Mongo e retornam 500.
 - **Correção:** tratar o código `11000` no `errorMiddleware` (ou no repository), retornando 400/409.
 - **Commit sugerido:** `fix: handle mongo duplicate key errors`
+- **Resolução:** `userRepository.save` converte o erro de chave duplicada (helper `isDuplicateKeyError` em `src/utils/mongo.utils.ts`) no mesmo `BadRequestException` do e-mail já cadastrado. Como fallback para outros índices únicos, o `errorMiddleware` responde 409 (`ConflictException`) sem repassar nem logar a mensagem original, que contém o valor duplicado. Isso também resolve a pendência do item 5 para esse erro.
 
 ---
 

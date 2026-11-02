@@ -1,7 +1,9 @@
+import mongoose from "mongoose";
 import { describe, expect, it, vi } from "vitest";
 
 import { errorMiddleware } from "../../src/middlewares/error.middleware.js";
 import { NotFoundException } from "../../src/shared/exceptions/index.js";
+import { AppLogger } from "../../src/shared/appLogger.js";
 import { createMockRequest, createMockResponse } from "../helpers/expressMock.js";
 
 vi.mock("../../src/shared/appLogger.js", () => ({
@@ -47,5 +49,29 @@ describe("errorMiddleware", () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: "Internal Server Error" });
+  });
+
+  it("should respond with 409 for a Mongo duplicate key error without leaking the duplicated value", () => {
+    const req = createMockRequest({});
+    const res = createMockResponse();
+    const next = vi.fn();
+
+    const error = new mongoose.mongo.MongoServerError({
+      message:
+        'E11000 duplicate key error collection: users index: email_1 dup key: { email: "john@example.com" }',
+      code: 11000,
+    });
+
+    errorMiddleware(error, req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Conflict" }),
+    );
+
+    const responseBody = JSON.stringify(vi.mocked(res.json).mock.calls);
+    const logged = JSON.stringify(vi.mocked(AppLogger.error).mock.calls);
+    expect(responseBody).not.toContain("john@example.com");
+    expect(logged).not.toContain("john@example.com");
   });
 });
