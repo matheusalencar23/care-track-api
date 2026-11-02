@@ -21,10 +21,21 @@ Copie `.env.example` para `.env` e preencha:
 
 ## Rodando localmente
 
+Para usar um MongoDB local via Docker, suba o serviço do `docker-compose.yml` e aponte o `.env` para ele (`MONGO_DB_URL_CONNECTION=mongodb://localhost:27017/care-track`):
+
 ```bash
+docker compose up -d   # sobe só o MongoDB, com os dados em um volume
 npm install
 npm run dev
 ```
+
+Para rodar a API também em container, a partir do `Dockerfile` (mesma imagem de produção):
+
+```bash
+docker compose --profile app up -d --build
+```
+
+Nesse modo, a API usa o Mongo do compose e roda com `NODE_ENV=production`, o que mantém os rate limits ativos. `docker compose down` para tudo; `docker compose down -v` também apaga os dados.
 
 ## Testes
 

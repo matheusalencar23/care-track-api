@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Comandos
 
 ```bash
+docker compose up -d   # MongoDB local (porta 27017); --profile app sobe também a API
 npm run dev        # tsx em modo watch, carrega o .env (precisa de um MongoDB rodando)
 npm run build      # tsc -p tsconfig.build.json -> dist/
 npm start          # node dist/server.js

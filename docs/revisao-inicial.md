@@ -115,12 +115,14 @@ O projeto vai tratar dados de saúde, classificados como **dado sensível** pela
 - **Problema:** todos os testes mockam repositories e services; rotas, middlewares e banco nunca são testados juntos.
 - **Correção:** adicionar `supertest` + `mongodb-memory-server` e cobrir os fluxos de cadastro, verificação e login de ponta a ponta.
 - **Commit sugerido:** `test: add integration tests for auth flow`
+- **Status:** adiado. Proposta discutida em 02/11/2026: `supertest` + `mongodb-memory-server`, mock só do `email.service`, projetos separados no Vitest (`test:unit` / `test:integration`), começando pelo fluxo completo de autenticação e pelos casos dos itens 1, 2 e 9.
 
-### [ ] 14. Falta `docker-compose.yml` para desenvolvimento local
+### [X] 14. Falta `docker-compose.yml` para desenvolvimento local
 
 - **Problema:** é preciso ter um MongoDB rodando à parte para usar o `npm run dev`.
 - **Correção:** criar um `docker-compose.yml` com o serviço do MongoDB (e, opcionalmente, a API).
 - **Commit sugerido:** `chore: add docker compose for local development`
+- **Resolução:** `docker-compose.yml` com o MongoDB 8.0 (volume `mongo-data` e healthcheck) e a API no profile `app`, construída a partir do `Dockerfile` e apontada para o Mongo do compose. README atualizado.
 
 ### [ ] 15. Pequenos ajustes
 
