@@ -11,6 +11,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 | Tamanho de arquivos | Sem otimização por enquanto: limite generoso por arquivo, configurável por variável de ambiente. |
 | Papéis na LGPD | Dados dos pacientes: a enfermeira é **controladora** e o Care Track é **operador**. Dados das enfermeiras (conta, e-mail, COREN): o Care Track é **controlador**. |
 | Encarregado (DPO) do Care Track | **Matheus Alencar**, responsável pelo projeto. Precisa de um e-mail exclusivo de privacidade, publicado na política de privacidade. |
+| Correção de registros do histórico | **Edição com versões** e **anulação com motivo**; nunca exclusão definitiva pelo app. Detalhes no princípio 2. |
 | Armazenamento de arquivos | A definir na Fase 3. Direção: armazenamento de objetos compatível com S3, bucket privado, preferencialmente em região no Brasil; MinIO no ambiente local. |
 
 ## Leis e regras que orientam o projeto
@@ -26,14 +27,19 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 | LGPD, art. 18 e art. 16 | Direitos do titular (acesso, correção, portabilidade); a eliminação não se aplica quando há obrigação legal de guarda. | Exportação do histórico; prontuário não é apagado a pedido. |
 | LGPD, art. 41; Resolução ANPD 2/2022 | Controlador indica encarregado. A dispensa para agente de pequeno porte não vale para tratamento de alto risco (dados de saúde costumam se enquadrar). | O sistema facilita o papel da enfermeira como controladora (termos, ferramentas, campo de encarregado). |
 | Lei 13.787/2018 | Prontuário digital guardado por **no mínimo 20 anos** após o último registro. | Política de retenção; armazenamento frio para arquivos antigos. |
-| Código de Ética da Enfermagem (COFEN 564/2017) e normas de registro do COFEN | Sigilo; registros identificam o profissional (nome e COREN) com data e hora; registros não são apagados nem alterados. | Histórico **só de inclusão**, correção por adendo; COREN e UF no cadastro. |
+| Código de Ética da Enfermagem (COFEN 564/2017) e normas de registro do COFEN | Sigilo; registros identificam o profissional (nome e COREN) com data e hora; o registro original não pode desaparecer e correções precisam ser rastreáveis. | Edição com versões e anulação com motivo, sem exclusão definitiva; COREN e UF no cadastro. |
 | Código Civil, art. 20; normas do COFEN sobre imagens | Uso de imagem do paciente exige consentimento e finalidade assistencial. | Registro de consentimento; arquivos nunca públicos. |
 | Lei 14.063/2020 | Alguns documentos de saúde exigem assinatura qualificada (ICP-Brasil). | Fora do escopo inicial; avaliar se o sistema emitir documentos oficiais. |
 
 ## Princípios de arquitetura
 
 1. **Isolamento por enfermeira.** Toda consulta a pacientes, registros e arquivos filtra por `req.user.id`. Cada rota nova tem teste de integração provando que uma enfermeira não acessa dados de outra.
-2. **Histórico só de inclusão.** Registros têm autor, COREN e horário definido pelo servidor. Sem `PUT`/`DELETE`: correções são registros novos (adendos) que apontam para o original.
+2. **Histórico corrigível, mas rastreável.** Registros têm autor, COREN e horário definido pelo servidor. Para a enfermeira, editar e "excluir" funcionam normalmente; por baixo, nada é apagado:
+   - **Edição com versões:** cada edição guarda a versão anterior (conteúdo, autor, data/hora) e marca o registro como "editado"; a linha do tempo mostra a versão atual e as anteriores ficam acessíveis. Dentro de uma **janela curta após a criação** (proposta: 1 hora, configurável — a confirmar) a edição é livre; depois dela, exige motivo.
+   - **Anulação com motivo** no lugar da exclusão (ex.: "registrado no paciente errado"): o registro sai da linha do tempo e das exportações, mas continua guardado e sinalizado como anulado, visível só para a enfermeira.
+   - **Mover para o paciente correto:** anula o registro no paciente errado e cria uma cópia no paciente certo com referência ao original, numa única transação.
+   - **Registros anulados nunca entram na exportação** do histórico: no caso de paciente errado, o conteúdo é de outra pessoa e exportá-lo seria vazamento.
+   - **Sem exclusão definitiva no app.** Se houver obrigação legal de apagar (ordem judicial ou da ANPD), é um procedimento administrativo do operador, registrado na auditoria.
 3. **Auditoria de acesso.** Coleção própria, também só de inclusão, com quem acessou qual paciente, registro ou arquivo, e quando.
 4. **Arquivos fora do MongoDB.** Bucket privado; upload e download direto pelo cliente com URLs assinadas de curta duração; no MongoDB ficam só os metadados (dono, paciente, tipo, tamanho, hash, chave). Chaves sem dados pessoais. EXIF (incluindo GPS) removido de imagens.
 5. **Minimização.** Só dados com finalidade clara; CPF e Cartão SUS opcionais.
@@ -61,8 +67,10 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 
 ### Fase 2 — Histórico em texto
 
-- [ ] Registros só de inclusão, com autor, COREN e horário do servidor.
-- [ ] Correção por adendo vinculado ao registro original.
+- [ ] Criação de registros com autor, COREN e horário do servidor.
+- [ ] Edição com versões (coleção de versões anteriores, marca de "editado") e janela de edição livre configurável; motivo obrigatório fora da janela.
+- [ ] Anulação com motivo (`status` ativo/anulado e dados da anulação); anulados fora da linha do tempo, mas consultáveis pela enfermeira.
+- [ ] Mover registro para o paciente correto (anulação + cópia com referência, em transação).
 - [ ] Linha do tempo paginada por paciente.
 - [ ] Tipos de registro (ex.: anotação, evolução), se fizer sentido no uso real.
 
@@ -72,7 +80,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 - [ ] Upload e download com URLs assinadas de curta duração.
 - [ ] Validação de tipo e limite de tamanho configurável.
 - [ ] Remoção de EXIF/GPS das imagens.
-- [ ] Arquivos sempre anexados a um registro do histórico.
+- [ ] Arquivos sempre anexados a um registro do histórico. Arquivos não são editados: ao anular o registro, os anexos são anulados junto; para trocar um arquivo, anula-se e anexa-se de novo.
 - [ ] Antivírus (ClamAV) — pode ficar para depois.
 
 ### Fase 4 — Governança LGPD
@@ -80,7 +88,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 - [ ] E-mail exclusivo de privacidade para o encarregado.
 - [ ] Política de privacidade (com o contato do encarregado) e termos de uso com as cláusulas de operador (papéis, finalidade, local dos dados, encerramento de conta).
 - [ ] Campo opcional no perfil para a enfermeira informar o contato do encarregado dela.
-- [ ] Exportação completa do histórico de um paciente (acesso e portabilidade).
+- [ ] Exportação completa do histórico de um paciente (acesso e portabilidade), sem registros e anexos anulados.
 - [ ] Relatório de acessos (a partir do log de auditoria).
 - [ ] Política de retenção (mínimo de 20 anos).
 - [ ] Relatório de Impacto à Proteção de Dados (RIPD) e plano de resposta a incidentes.
