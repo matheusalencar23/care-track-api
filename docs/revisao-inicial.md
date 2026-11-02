@@ -94,11 +94,12 @@ O projeto vai tratar dados de saúde, classificados como **dado sensível** pela
 - **Commit sugerido:** `refactor(users): remove unused auth handlers`
 - **Resolução:** `signin` e `me` removidos do `user.controller.ts`. Os testes deles foram movidos para `tests/controllers/authController.spec.ts`, agora contra o `auth.controller.ts` (que não tinha testes), e ganharam um caso para o `signout`.
 
-### [ ] 11. README desatualizado
+### [X] 11. README desatualizado
 
 - **Onde:** `README.md` (tabela de endpoints)
 - **Problema:** `signin` e `me` aparecem em `/users`, mas estão em `/api/v1/auth`; o `POST /auth/signout` não aparece.
 - **Commit sugerido:** `docs: update endpoints table`
+- **Resolução:** tabela de endpoints corrigida (rotas de auth em `/api/v1/auth`, `signout` incluído, coluna de rate limit), blocos de código que estavam escapados (`\`\`\``) corrigidos, `NODE_ENV` e `.env.test` documentados e seção de deploy ajustada: a imagem só é publicada quando o semantic-release gera versão.
 
 ### [ ] 12. Logger limitado
 

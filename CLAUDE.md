@@ -39,4 +39,3 @@ Express 5 + Mongoose + Zod, TypeScript ESM (`"type": "module"`, `NodeNext`). **I
 As correções pendentes da revisão inicial estão registradas como checklist em `docs/revisao-inicial.md`; ao concluir um item, marque o checkbox correspondente.
 
 - Os templates HTML de e-mail ficam em `templates/` na raiz e são lidos em tempo de execução via `process.cwd()`, fora do build do `tsc`. Um template novo nessa pasta já entra na imagem (o Dockerfile copia `templates/` no estágio de produção); se mudar o local, ajuste o `COPY` do Dockerfile.
-- A tabela de endpoints do README está desatualizada: signin/me/signout ficam em `/api/v1/auth`, não em `/users`.
