@@ -100,7 +100,7 @@ jobs:
       # Garante que o Dockerfile funciona antes do merge; o release só gera a
       # imagem depois de criar a tag
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
