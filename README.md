@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- Node 22+ (versão usada no CI e na imagem: `.nvmrc`)
+- Node `^22.14.0 || >=24.10.0` (exigência do semantic-release; versão usada no CI e na imagem: `.nvmrc`)
 - MongoDB
 
 ## Configuração
@@ -14,6 +14,7 @@ Copie `.env.example` para `.env` e preencha:
 - `MONGO_DB_URL_CONNECTION` — string de conexão do MongoDB
 - `CORS_ORIGIN` — origem permitida pelo CORS
 - `EMAIL_HOST` — URL base usada no link de confirmação de e-mail
+- `PASSWORD_RESET_HOST` — URL base usada no link de redefinição de senha
 - `RESEND_API_KEY` — chave da API do Resend
 - `RESEND_EMAIL_ORIGIN` — remetente dos e-mails transacionais
 
@@ -40,11 +41,18 @@ Nesse modo, a API usa o Mongo do compose e roda com `NODE_ENV=production`, o que
 ## Testes
 
 ```bash
-npm test # roda os testes
-npm run check # lint + test + build
+npm test                 # todos os testes
+npm run test:unit        # só os unitários
+npm run test:integration # só os de integração
+npm run check            # lint + test + build
 ```
 
-Os testes leem as variáveis do arquivo `.env.test`, versionado com valores fictícios e usado também no CI. Ele precisa ter as mesmas chaves obrigatórias do `.env.example`. Nenhum teste acessa o banco ou o Resend de verdade.
+Os testes leem as variáveis do arquivo `.env.test`, versionado com valores fictícios e usado também no CI. Ele precisa ter as mesmas chaves obrigatórias do `.env.example`.
+
+- **Unitários** (`tests/`, exceto `tests/integration/`): repositórios e serviços mockados com `vi.mock`, sem banco.
+- **Integração** (`tests/integration/`): sobem o `app` com `supertest` contra um MongoDB em memória (`mongodb-memory-server`, que baixa o binário do `mongod` no `npm install`). Cada arquivo usa um banco próprio, limpo depois de cada teste. O único mock é o `email.service` — os testes leem o link enviado a partir das chamadas do mock. O Vitest roda com `NODE_ENV=test`, então os rate limits ficam ativos; os contadores são zerados depois de cada teste.
+
+Nenhum teste acessa o Resend ou um banco real.
 
 Commits seguem o padrão Conventional Commits, validado pelo commitlint — ver [`docs/commits.md`](docs/commits.md).
 
@@ -52,17 +60,23 @@ Commits seguem o padrão Conventional Commits, validado pelo commitlint — ver 
 
 Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um cookie httpOnly `token` (JWT válido por 1h), gravado no signin; não há header `Authorization`.
 
-| Método | Rota                            | Descrição                              | Autenticado | Rate limit      |
-| ------ | ------------------------------- | -------------------------------------- | ----------- | --------------- |
-| POST   | `/api/v1/users/signup`          | Cria uma conta                         | não         | 100/h           |
-| GET    | `/api/v1/users/validate?token=` | Confirma o e-mail                      | não         | 100/h           |
-| POST   | `/api/v1/users/resend`          | Reenvia o e-mail de confirmação        | não         | 100/h e 5/15min |
-| POST   | `/api/v1/auth/signin`           | Login, grava o cookie de autenticação  | não         | 10/15min        |
-| POST   | `/api/v1/auth/signout`          | Logout, remove o cookie                | sim         | 10/15min        |
-| GET    | `/api/v1/auth/me`               | Retorna o usuário autenticado          | sim         | 10/15min        |
-| GET    | `/api/v1/health`                | Health check (API, banco e versão)     | não         | —               |
+| Método | Rota                            | Descrição                             | Autenticado | Rate limit       |
+| ------ | ------------------------------- | ------------------------------------- | ----------- | ---------------- |
+| POST   | `/api/v1/users/signup`          | Cria uma conta                        | não         | 100/h            |
+| GET    | `/api/v1/users/validate?token=` | Confirma o e-mail                     | não         | 100/h            |
+| POST   | `/api/v1/users/resend`          | Reenvia o e-mail de confirmação       | não         | 100/h e 5/15min  |
+| POST   | `/api/v1/auth/signin`           | Login, grava o cookie de autenticação | não         | 100/h e 10/15min |
+| POST   | `/api/v1/auth/forgot-password`  | Envia o link de redefinição de senha  | não         | 100/h e 5/15min  |
+| POST   | `/api/v1/auth/reset-password`   | Define a nova senha a partir do token | não         | 100/h e 10/15min |
+| POST   | `/api/v1/auth/signout`          | Logout, remove o cookie               | sim         | 100/h            |
+| GET    | `/api/v1/auth/me`               | Retorna o usuário autenticado         | sim         | 100/h            |
+| GET    | `/api/v1/health`                | Health check (API, banco e versão)    | não         | —                |
 
 Os limites são por IP e ficam desativados com `NODE_ENV=development`. O login só é aceito depois que o e-mail for confirmado. O `/users/resend` responde 200 mesmo para e-mails não cadastrados (exceto quando estoura o limite por IP, que retorna 429) e só envia um novo e-mail se o anterior tiver mais de 60 segundos.
+
+O `signup` recebe `{ name, email, password, coren, corenState }`: `coren` é o número de inscrição (só dígitos) e `corenState` a UF do conselho regional (`SP`, `RJ`...). Os dois voltam também no `/auth/me` e identificam a enfermeira como autora dos registros.
+
+Recuperação de senha: o `/auth/forgot-password` segue as mesmas regras do `/users/resend` (sempre 200, intervalo de 60 segundos) e envia um link `PASSWORD_RESET_HOST?token=...` válido por 30 minutos. O front-end envia esse token com a nova senha (`{ token, password }`) ao `/auth/reset-password`. A troca invalida todos os links de redefinição pendentes e todas as sessões abertas antes dela; se o e-mail ainda não tinha sido confirmado, passa a constar como confirmado (o link chegou por ele).
 
 ## Deploy
 

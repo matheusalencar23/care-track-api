@@ -1,11 +1,18 @@
 import mongoose, { Document } from "mongoose";
 import { comparePassword, hashPassword } from "../../utils/crypt.utils.js";
+import {
+  BRAZILIAN_STATES,
+  type BrazilianState,
+} from "../../shared/brazilianStates.js";
 
 export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
+  coren: string;
+  corenState: BrazilianState;
   emailVerifiedAt: Date | null;
+  passwordChangedAt: Date | null;
   authenticate: (password: string) => Promise<boolean>;
 }
 
@@ -27,7 +34,21 @@ const userSchema = new mongoose.Schema<IUser>(
       type: String,
       required: true,
     },
+    coren: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    corenState: {
+      type: String,
+      required: true,
+      enum: BRAZILIAN_STATES,
+    },
     emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+    passwordChangedAt: {
       type: Date,
       default: null,
     },

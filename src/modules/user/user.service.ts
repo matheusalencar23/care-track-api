@@ -10,22 +10,19 @@ import { sendConfirmationEmail } from "../../services/email/email.service.js";
 import * as emailVerificationTokenService from "../email/emailVerificationToken.service.js";
 import { EMAIL_HOST } from "../../config/secrets.js";
 import { AppLogger } from "../../shared/appLogger.js";
+import type { SignupData } from "./user.schema.js";
 
-export const createUser = async (
-  name: string,
-  email: string,
-  password: string,
-) => {
-  const userAlreadyExists = await userRepository.findByEmail(email);
+export const createUser = async (data: SignupData) => {
+  const userAlreadyExists = await userRepository.findByEmail(data.email);
 
   if (userAlreadyExists) {
     throw new BadRequestException(messages.INVALID_REGISTRATION_CREDENTIALS);
   }
 
-  const user = await userRepository.save(name, email, password);
+  const user = await userRepository.save(data);
   AppLogger.info("User created", { userId: user.id });
 
-  createValidationEmail(user.id, email, name).catch(() => {});
+  createValidationEmail(user.id, data.email, data.name).catch(() => {});
 };
 
 export const validateUser = async (token: string) => {

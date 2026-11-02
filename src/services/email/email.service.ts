@@ -7,10 +7,7 @@ import { AppLogger } from "../../shared/appLogger.js";
 const resend = new Resend(RESEND_API_KEY);
 
 const getEmailTemplate = async (template: string) => {
-  const templatePath = resolve(
-    process.cwd(),
-    `templates/${template}.html`,
-  );
+  const templatePath = resolve(process.cwd(), `templates/${template}.html`);
 
   return await readFile(templatePath, "utf-8");
 };
@@ -31,6 +28,26 @@ export const sendConfirmationEmail = async (
     from: RESEND_EMAIL_ORIGIN,
     to,
     subject: "Confirme seu cadastro",
+    html,
+  });
+
+  AppLogger.info(`Email sent`);
+};
+
+export const sendPasswordResetEmail = async (
+  to: string,
+  name: string,
+  resetUrl: string,
+) => {
+  AppLogger.info("Sending password reset email...");
+
+  let html = await getEmailTemplate("reset-password");
+  html = html.replaceAll("{{name}}", name).replaceAll("{{resetUrl}}", resetUrl);
+
+  await resend.emails.send({
+    from: RESEND_EMAIL_ORIGIN,
+    to,
+    subject: "Redefinição de senha",
     html,
   });
 

@@ -7,6 +7,20 @@ import {
   HttpException,
 } from "../../shared/exceptions/index.js";
 
+const isIssuedBeforePasswordChange = (
+  issuedAt: number | undefined,
+  passwordChangedAt: Date | null,
+) => {
+  if (!passwordChangedAt) {
+    return false;
+  }
+
+  return (
+    issuedAt === undefined ||
+    issuedAt < Math.floor(passwordChangedAt.getTime() / 1000)
+  );
+};
+
 export const authenticationMiddleware = async (
   req: Request,
   res: Response,
@@ -32,10 +46,18 @@ export const authenticationMiddleware = async (
       return next(new UnauthorizedException("Invalid token"));
     }
 
+    if (
+      isIssuedBeforePasswordChange(verifiedToken.iat, user.passwordChangedAt)
+    ) {
+      return next(new UnauthorizedException("Invalid token"));
+    }
+
     req.user = {
       id: user.id,
       name: user.name,
       email: user.email,
+      coren: user.coren,
+      corenState: user.corenState,
     };
     next();
   } catch (err) {

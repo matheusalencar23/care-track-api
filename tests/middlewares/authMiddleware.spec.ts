@@ -64,6 +64,8 @@ describe("authenticationMiddleware", () => {
       name: "John Doe",
       email: "john@example.com",
       password: "hashed-password",
+      coren: "123456",
+      corenState: "SP",
     } as never);
 
     const req = createMockRequest({ cookies: { token: "valid-token" } });
@@ -77,6 +79,8 @@ describe("authenticationMiddleware", () => {
       id: "123",
       name: "John Doe",
       email: "john@example.com",
+      coren: "123456",
+      corenState: "SP",
     });
     expect(next).toHaveBeenCalledWith();
   });
@@ -131,5 +135,46 @@ describe("authenticationMiddleware", () => {
       expect.objectContaining({ statusCode: 500 }),
     );
     expect(User.findOne).not.toHaveBeenCalled();
+  });
+
+  it("should reject a token issued before the last password change", async () => {
+    const issuedAt = Math.floor(Date.now() / 1000) - 60;
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({
+      _id: "123",
+      iat: issuedAt,
+    } as never);
+    vi.mocked(User.findOne).mockResolvedValue({
+      id: "123",
+      passwordChangedAt: new Date((issuedAt + 1) * 1000),
+    } as never);
+
+    const req = createMockRequest({ cookies: { token: "old-token" } });
+    const next = createMockNext();
+
+    await authenticationMiddleware(req, createMockResponse(), next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+    expect(req.user).toBeUndefined();
+  });
+
+  it("should accept a token issued in the same second as the password change", async () => {
+    const issuedAt = Math.floor(Date.now() / 1000);
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({
+      _id: "123",
+      iat: issuedAt,
+    } as never);
+    vi.mocked(User.findOne).mockResolvedValue({
+      id: "123",
+      name: "John Doe",
+      email: "john@example.com",
+      passwordChangedAt: new Date(issuedAt * 1000 + 500),
+    } as never);
+
+    const req = createMockRequest({ cookies: { token: "new-token" } });
+    const next = createMockNext();
+
+    await authenticationMiddleware(req, createMockResponse(), next);
+
+    expect(next).toHaveBeenCalledWith();
   });
 });

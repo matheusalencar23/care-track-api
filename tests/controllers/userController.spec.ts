@@ -45,6 +45,8 @@ describe("signup", () => {
         name: "John Doe",
         email: "john@example.com",
         password: "password123",
+        coren: "123456",
+        corenState: "SP",
       },
     });
 
@@ -54,17 +56,21 @@ describe("signup", () => {
 
     await signup(req, res, next);
 
-    expect(createUser).toHaveBeenCalledWith(
-      "John Doe",
-      "john@example.com",
-      "password123",
-    );
+    expect(createUser).toHaveBeenCalledWith({
+      name: "John Doe",
+      email: "john@example.com",
+      password: "password123",
+      coren: "123456",
+      corenState: "SP",
+    });
 
     expect(res.status).toHaveBeenCalledWith(201);
 
     expect(json).toHaveBeenCalledWith({
       name: "John Doe",
       email: "john@example.com",
+      coren: "123456",
+      corenState: "SP",
     });
 
     expect(next).not.toHaveBeenCalled();
@@ -80,6 +86,8 @@ describe("signup", () => {
         name: "John Doe",
         email: "john@example.com",
         password: "password123",
+        coren: "123456",
+        corenState: "SP",
       },
     });
 

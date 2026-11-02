@@ -40,6 +40,14 @@ vi.mock("../../src/services/email/email.service.js", () => ({
   sendConfirmationEmail: vi.fn(),
 }));
 
+const userData = {
+  name: "John Doe",
+  email: "john@example.com",
+  password: "password123",
+  coren: "123456",
+  corenState: "SP" as const,
+};
+
 describe("userService", () => {
   describe("createUser", () => {
     beforeEach(() => {
@@ -51,9 +59,9 @@ describe("userService", () => {
         _id: "123",
       } as never);
 
-      await expect(
-        createUser("John Doe", "john@example.com", "password123"),
-      ).rejects.toThrow(messages.INVALID_REGISTRATION_CREDENTIALS);
+      await expect(createUser(userData)).rejects.toThrow(
+        messages.INVALID_REGISTRATION_CREDENTIALS,
+      );
 
       expect(userRepository.findByEmail).toHaveBeenCalledWith(
         "john@example.com",
@@ -77,17 +85,13 @@ describe("userService", () => {
 
       vi.mocked(sendConfirmationEmail).mockResolvedValue();
 
-      await createUser("John Doe", "john@example.com", "password123");
+      await createUser(userData);
 
       expect(userRepository.findByEmail).toHaveBeenCalledWith(
         "john@example.com",
       );
 
-      expect(userRepository.save).toHaveBeenCalledWith(
-        "John Doe",
-        "john@example.com",
-        "password123",
-      );
+      expect(userRepository.save).toHaveBeenCalledWith(userData);
 
       expect(
         emailVerificationTokenService.createEmailVerificationToken,
@@ -113,9 +117,7 @@ describe("userService", () => {
         new Error("Resend is down"),
       );
 
-      await expect(
-        createUser("John Doe", "john@example.com", "password123"),
-      ).resolves.toBeUndefined();
+      await expect(createUser(userData)).resolves.toBeUndefined();
 
       expect(userRepository.save).toHaveBeenCalledOnce();
 
@@ -138,9 +140,7 @@ describe("userService", () => {
         emailVerificationTokenService.createEmailVerificationToken,
       ).mockRejectedValue(new Error("DB is down"));
 
-      await expect(
-        createUser("John Doe", "john@example.com", "password123"),
-      ).resolves.toBeUndefined();
+      await expect(createUser(userData)).resolves.toBeUndefined();
 
       await vi.waitFor(() => {
         expect(AppLogger.error).toHaveBeenCalledWith(
@@ -176,9 +176,9 @@ describe("userService", () => {
       expect(userRepository.findById).toHaveBeenCalledWith("123");
       expect(user.emailVerifiedAt).toBeInstanceOf(Date);
       expect(user.save).toHaveBeenCalledOnce();
-      expect(emailVerificationTokenService.markTokenAsUsed).toHaveBeenCalledWith(
-        tokenRecord,
-      );
+      expect(
+        emailVerificationTokenService.markTokenAsUsed,
+      ).toHaveBeenCalledWith(tokenRecord);
       expect(
         vi.mocked(emailVerificationTokenService.markTokenAsUsed).mock
           .invocationCallOrder[0],

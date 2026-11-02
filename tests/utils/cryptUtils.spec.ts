@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { comparePassword, hashPassword } from "../../src/utils/crypt.utils.js";
+import {
+  comparePassword,
+  generateRandomToken,
+  hashPassword,
+  hashToken,
+} from "../../src/utils/crypt.utils.js";
 
 describe("cryptUtils", () => {
   describe("hashPassword", () => {
@@ -40,6 +45,23 @@ describe("cryptUtils", () => {
       const result = await comparePassword(wrongPassword, hash);
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe("generateRandomToken", () => {
+    it("should generate a different 64-char hex token each time", () => {
+      const token = generateRandomToken();
+
+      expect(token).toMatch(/^[0-9a-f]{64}$/);
+      expect(generateRandomToken()).not.toBe(token);
+    });
+  });
+
+  describe("hashToken", () => {
+    it("should be deterministic and differ from the token", () => {
+      expect(hashToken("abc")).toBe(hashToken("abc"));
+      expect(hashToken("abc")).not.toBe("abc");
+      expect(hashToken("abc")).not.toBe(hashToken("abd"));
     });
   });
 });

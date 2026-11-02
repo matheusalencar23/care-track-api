@@ -5,9 +5,24 @@ import {
   SignupSchema,
 } from "../../src/modules/user/user.schema.js";
 
+const signupBody = {
+  name: "John Doe",
+  email: "john@example.com",
+  password: "password123",
+  coren: "123456",
+  corenState: "SP",
+};
+
 const signupPayload = (password: unknown) => ({
-  body: { name: "John Doe", email: "john@example.com", password },
+  body: { ...signupBody, password },
 });
+
+const signupErrors = (overrides: Record<string, unknown>) => {
+  const result = SignupSchema.safeParse({
+    body: { ...signupBody, ...overrides },
+  });
+  return result.success ? [] : result.error.issues.map((i) => i.message);
+};
 
 const errorMessages = (password: unknown) => {
   const result = SignupSchema.safeParse(signupPayload(password));
@@ -49,6 +64,39 @@ describe("SignupSchema", () => {
     it("should reject a missing password", () => {
       expect(errorMessages(undefined)).toEqual(["A senha é obrigatória"]);
     });
+  });
+});
+
+describe("SignupSchema coren", () => {
+  it("should accept a numeric COREN with a valid state", () => {
+    expect(signupErrors({})).toEqual([]);
+  });
+
+  it("should reject a COREN with anything other than digits", () => {
+    expect(signupErrors({ coren: "123.456" })).toEqual([
+      "O COREN deve conter apenas números",
+    ]);
+    expect(signupErrors({ coren: "123456-ENF" })).toEqual([
+      "O COREN deve conter apenas números",
+    ]);
+    expect(signupErrors({ coren: "" })).toEqual([
+      "O COREN deve conter apenas números",
+    ]);
+  });
+
+  it("should reject a missing COREN", () => {
+    expect(signupErrors({ coren: undefined })).toEqual([
+      "O COREN é obrigatório",
+    ]);
+  });
+
+  it("should reject an unknown state", () => {
+    expect(signupErrors({ corenState: "XX" })).toEqual([
+      "UF do COREN inválida",
+    ]);
+    expect(signupErrors({ corenState: undefined })).toEqual([
+      "UF do COREN inválida",
+    ]);
   });
 });
 
