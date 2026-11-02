@@ -1,4 +1,7 @@
 import User from "./user.model.js";
+import { BadRequestException } from "../../shared/exceptions/index.js";
+import { messages } from "../../shared/messages.js";
+import { isDuplicateKeyError } from "../../utils/mongo.utils.js";
 
 export const findByEmail = async (email: string) => {
   return await User.findOne({ email: email });
@@ -15,7 +18,15 @@ export const save = async (name: string, email: string, password: string) => {
     password,
   });
 
-  await user.save();
+  try {
+    await user.save();
+  } catch (err) {
+    if (isDuplicateKeyError(err)) {
+      throw new BadRequestException(messages.INVALID_REGISTRATION_CREDENTIALS);
+    }
+
+    throw err;
+  }
 
   return user;
 };

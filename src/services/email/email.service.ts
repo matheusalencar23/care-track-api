@@ -9,7 +9,7 @@ const resend = new Resend(RESEND_API_KEY);
 const getEmailTemplate = async (template: string) => {
   const templatePath = resolve(
     process.cwd(),
-    `src/services/email/templates/${template}.html`,
+    `templates/${template}.html`,
   );
 
   return await readFile(templatePath, "utf-8");
@@ -20,7 +20,7 @@ export const sendConfirmationEmail = async (
   name: string,
   confirmationUrl: string,
 ) => {
-  AppLogger.info(`Sending confirmation email to ${to}`);
+  AppLogger.info("Sending confirmation email...");
 
   let html = await getEmailTemplate("confirm-registration");
   html = html

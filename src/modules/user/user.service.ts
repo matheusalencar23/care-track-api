@@ -2,9 +2,10 @@ import * as userRepository from "./user.repository.js";
 import {
   BadRequestException,
   NotFoundException,
+  TooManyRequestsException,
   UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
-import { INVALID_REGISTRATION_CREDENTIALS } from "../../shared/messages.js";
+import { messages } from "../../shared/messages.js";
 import { sendConfirmationEmail } from "../../services/email/email.service.js";
 import * as emailVerificationTokenService from "../email/emailVerificationToken.service.js";
 import { EMAIL_HOST } from "../../config/secrets.js";
@@ -18,30 +19,36 @@ export const createUser = async (
   const userAlreadyExists = await userRepository.findByEmail(email);
 
   if (userAlreadyExists) {
-    throw new BadRequestException(INVALID_REGISTRATION_CREDENTIALS);
+    throw new BadRequestException(messages.INVALID_REGISTRATION_CREDENTIALS);
   }
 
   const user = await userRepository.save(name, email, password);
-  createValidationEmail(user.id, email, name);
+  AppLogger.info("User created", { userId: user.id });
+
+  createValidationEmail(user.id, email, name).catch(() => {});
 };
 
 export const validateUser = async (token: string) => {
   const emailVerificationToken =
-    await emailVerificationTokenService.validateByToken(token);
+    await emailVerificationTokenService.findValidToken(token);
   const user = await userRepository.findById(
     emailVerificationToken.userId.toString(),
   );
 
-  if (user?.emailVerifiedAt) {
+  if (!user) {
+    throw new UnprocessableEntityException("Invalid token!", []);
+  }
+
+  if (user.emailVerifiedAt) {
     throw new UnprocessableEntityException("Email already verified!", []);
   }
 
-  if (user) {
-    user.emailVerifiedAt = new Date();
-    await user?.save();
-  }
+  user.emailVerifiedAt = new Date();
+  await user.save();
 
-  return;
+  // O token só é consumido depois que a verificação foi gravada: se algo
+  // falhar antes, o mesmo link continua funcionando.
+  await emailVerificationTokenService.markTokenAsUsed(emailVerificationToken);
 };
 
 export const resendValidation = async (email: string) => {
@@ -53,6 +60,12 @@ export const resendValidation = async (email: string) => {
 
   if (user.emailVerifiedAt) {
     throw new UnprocessableEntityException("Email already verified!", []);
+  }
+
+  if (await emailVerificationTokenService.isOnResendCooldown(user.id)) {
+    throw new TooManyRequestsException(
+      "Confirmation email was sent recently, try again later",
+    );
   }
 
   await createValidationEmail(user.id, email, user.name);
@@ -73,7 +86,7 @@ const createValidationEmail = async (
       `${EMAIL_HOST}?token=${emailVerificationToken}`,
     );
   } catch (err) {
-    AppLogger.error("Error sending confirmation email to: " + email);
+    AppLogger.error("Error sending confirmation email", { userId });
     if (err instanceof Error && err.stack) {
       AppLogger.error(err.stack);
     }

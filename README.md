@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- Node 22+
+- Node 22+ (versão usada no CI e na imagem: `.nvmrc`)
 - MongoDB
 
 ## Configuração
@@ -17,31 +17,57 @@ Copie `.env.example` para `.env` e preencha:
 - `RESEND_API_KEY` — chave da API do Resend
 - `RESEND_EMAIL_ORIGIN` — remetente dos e-mails transacionais
 
+`LOG_LEVEL` é opcional (`debug`, `info`, `warn`, `error`; padrão `info`). `NODE_ENV` é opcional e vale `development` por padrão. Em `development` os rate limits ficam desativados; em `production` o cookie de autenticação passa a exigir HTTPS (`secure`).
+
 ## Rodando localmente
 
-\`\`\`bash
+Para usar um MongoDB local via Docker, suba o serviço do `docker-compose.yml` e aponte o `.env` para ele (`MONGO_DB_URL_CONNECTION=mongodb://localhost:27017/care-track`):
+
+```bash
+docker compose up -d   # sobe só o MongoDB, com os dados em um volume
 npm install
 npm run dev
-\`\`\`
+```
+
+Para rodar a API também em container, a partir do `Dockerfile` (mesma imagem de produção):
+
+```bash
+docker compose --profile app up -d --build
+```
+
+Nesse modo, a API usa o Mongo do compose e roda com `NODE_ENV=production`, o que mantém os rate limits ativos. `docker compose down` para tudo; `docker compose down -v` também apaga os dados.
 
 ## Testes
 
-\`\`\`bash
+```bash
 npm test # roda os testes
 npm run check # lint + test + build
-\`\`\`
+```
+
+Os testes leem as variáveis do arquivo `.env.test`, versionado com valores fictícios e usado também no CI. Ele precisa ter as mesmas chaves obrigatórias do `.env.example`. Nenhum teste acessa o banco ou o Resend de verdade.
+
+Commits seguem o padrão Conventional Commits, validado pelo commitlint — ver [`docs/commits.md`](docs/commits.md).
 
 ## Endpoints
 
-| Método | Rota                            | Descrição                      | Autenticado |
-| ------ | ------------------------------- | ------------------------------ | ----------- |
-| POST   | `/api/v1/users/signup`          | Cria uma conta                 | não         |
-| POST   | `/api/v1/users/signin`          | Login, retorna cookie httpOnly | não         |
-| GET    | `/api/v1/users/validate?token=` | Confirma o e-mail              | não         |
-| POST   | `/api/v1/users/resend`          | Reenvia e-mail de confirmação  | não         |
-| GET    | `/api/v1/users/me`              | Retorna o usuário autenticado  | sim         |
-| GET    | `/api/v1/health`                | Health check                   | não         |
+Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um cookie httpOnly `token` (JWT válido por 1h), gravado no signin; não há header `Authorization`.
+
+| Método | Rota                            | Descrição                              | Autenticado | Rate limit      |
+| ------ | ------------------------------- | -------------------------------------- | ----------- | --------------- |
+| POST   | `/api/v1/users/signup`          | Cria uma conta                         | não         | 100/h           |
+| GET    | `/api/v1/users/validate?token=` | Confirma o e-mail                      | não         | 100/h           |
+| POST   | `/api/v1/users/resend`          | Reenvia o e-mail de confirmação        | não         | 100/h e 5/15min |
+| POST   | `/api/v1/auth/signin`           | Login, grava o cookie de autenticação  | não         | 10/15min        |
+| POST   | `/api/v1/auth/signout`          | Logout, remove o cookie                | sim         | 10/15min        |
+| GET    | `/api/v1/auth/me`               | Retorna o usuário autenticado          | sim         | 10/15min        |
+| GET    | `/api/v1/health`                | Health check (API, banco e versão)     | não         | —               |
+
+Os limites são por IP e ficam desativados com `NODE_ENV=development`. O login só é aceito depois que o e-mail for confirmado. O `/users/resend` responde 200 mesmo para e-mails não cadastrados (exceto quando estoura o limite por IP, que retorna 429) e só envia um novo e-mail se o anterior tiver mais de 60 segundos.
 
 ## Deploy
 
-Build de imagem Docker automático via GitHub Actions a cada merge em `master` (ver `.github/workflows/release-docker.yml`), publicado em `ghcr.io/matheusalencar23/care-track-api`.
+Os PRs para `master` e `develop` passam pelo CI (`.github/workflows/ci.yml`): lint, testes e build, validação das mensagens de commit e build da imagem Docker.
+
+A cada push na `master`, o `release-docker.yml` repete essas verificações e roda o semantic-release. Se os commits gerarem uma nova versão (`feat`, `fix` ou breaking change), o release é criado no GitHub e a imagem Docker é publicada em `ghcr.io/matheusalencar23/care-track-api` com a tag da versão e `latest`. Ainda não há deploy automático: o fluxo termina na publicação da imagem.
+
+As dependências são atualizadas pelo Dependabot (`.github/dependabot.yml`), com PRs semanais para a `develop`.

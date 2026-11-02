@@ -1,5 +1,9 @@
 import { NextFunction, Request, Response } from "express";
-import { HttpException } from "../shared/exceptions/index.js";
+import {
+  ConflictException,
+  HttpException,
+} from "../shared/exceptions/index.js";
+import { isDuplicateKeyError } from "../utils/mongo.utils.js";
 import { AppLogger } from "../shared/appLogger.js";
 
 export const errorMiddleware = (
@@ -8,8 +12,19 @@ export const errorMiddleware = (
   res: Response,
   _next: NextFunction,
 ) => {
+  if (isDuplicateKeyError(err)) {
+    const conflict = new ConflictException("Conflict");
+    AppLogger.warn("Duplicate key error", { statusCode: conflict.statusCode });
+    return res.status(conflict.statusCode).json(conflict.toJson());
+  }
+
   if (err instanceof HttpException) {
-    AppLogger.error(`${err.statusCode} - ${err.message}`);
+    const context = { statusCode: err.statusCode };
+    if (err.statusCode >= 500) {
+      AppLogger.error(err.message, context);
+    } else {
+      AppLogger.warn(err.message, context);
+    }
     return res.status(err.statusCode).json(err.toJson());
   }
 

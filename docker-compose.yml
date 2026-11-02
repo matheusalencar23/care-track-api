@@ -1,0 +1,43 @@
+# Ambiente de desenvolvimento local.
+#
+#   docker compose up -d                 # só o MongoDB (use com `npm run dev`)
+#   docker compose --profile app up -d   # MongoDB + API a partir do Dockerfile
+#
+# Com `npm run dev`, aponte o .env para o Mongo do compose:
+#   MONGO_DB_URL_CONNECTION=mongodb://localhost:27017/care-track
+
+services:
+  mongo:
+    image: mongo:8.0
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api:
+    profiles: ["app"]
+    build: .
+    env_file: .env
+    environment:
+      # Sobrescreve valores do .env para usar o Mongo deste compose e a porta
+      # interna fixa (a mesma do HEALTHCHECK do Dockerfile)
+      MONGO_DB_URL_CONNECTION: mongodb://mongo:27017/care-track
+      PORT: "3001"
+      # A imagem roda com NODE_ENV=production: o pino-pretty (devDependency)
+      # não está instalado, os rate limits ficam ativos e o cookie é `secure`
+      # (os navegadores aceitam em http://localhost)
+    ports:
+      - "${PORT:-3001}:3001"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo-data:

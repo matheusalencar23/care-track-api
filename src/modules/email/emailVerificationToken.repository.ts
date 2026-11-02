@@ -20,6 +20,12 @@ export const findByToken = async (token: string) => {
   return await EmailVerificationToken.findOne({ tokenHash: token });
 };
 
+export const findLatestByUserId = async (userId: string) => {
+  return await EmailVerificationToken.findOne({ userId }).sort({
+    createdAt: -1,
+  });
+};
+
 export const deleteByUserId = async (id: string) => {
   return await EmailVerificationToken.deleteOne({ userId: id });
 };

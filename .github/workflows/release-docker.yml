@@ -5,16 +5,34 @@ on:
     branches:
       - master
 
+# Um release por vez, sem cancelar o que está em andamento (cancelar no meio
+# pode deixar uma tag criada sem a imagem correspondente)
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  packages: write
+  contents: read
+
+env:
+  HUSKY: 0
+  IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  release-and-docker:
-    name: Release and Publish Docker Image
+  check:
+    name: Check
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Release and publish Docker image
+    needs: check
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: write
 
     steps:
       - name: Checkout
@@ -22,64 +40,64 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Check latest tag before release
-        id: pre_release
-        run: |
-          git fetch --tags
-          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
-          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
-
+      # Além da tag e do release no GitHub, atualiza a versão do package.json
+      # no workspace (sem commit), que vai para dentro da imagem
       - name: Semantic Release
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HUSKY: 0
 
-      - name: Check if new release was created
-        id: check_release
+      - name: Check if a new release was created
+        id: release
         run: |
-          git fetch --tags
-          NEW_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
-          PREV_TAG="${{ steps.pre_release.outputs.prev_tag }}"
-
-          if [ "$NEW_TAG" != "$PREV_TAG" ] && [ "$NEW_TAG" != "none" ]; then
+          TAG=$(git tag --points-at HEAD --list 'v*' | head -n 1)
+          if [ -n "$TAG" ]; then
             echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "version=${NEW_TAG#v}" >> "$GITHUB_OUTPUT"
-            echo "Nova versão detectada: $NEW_TAG"
+            echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+            echo "Nova versão: $TAG"
           else
             echo "released=false" >> "$GITHUB_OUTPUT"
-            echo "Nenhum novo release gerado nesta execução."
+            echo "Nenhuma versão nova nesta execução."
           fi
 
+      - name: Docker metadata
+        if: steps.release.outputs.released == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.release.outputs.version }}
+            type=raw,value=latest
+
       - name: Set up Docker Buildx
-        if: steps.check_release.outputs.released == 'true'
+        if: steps.release.outputs.released == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
-        if: steps.check_release.outputs.released == 'true'
+        if: steps.release.outputs.released == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Docker Image
-        if: steps.check_release.outputs.released == 'true'
+      - name: Build and push Docker image
+        if: steps.release.outputs.released == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            ghcr.io/matheusalencar23/care-track-api:${{ steps.check_release.outputs.version }}
-            ghcr.io/matheusalencar23/care-track-api:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

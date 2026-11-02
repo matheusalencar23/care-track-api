@@ -4,13 +4,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createEmailVerificationToken,
   deleteVerificationTokenByUserId,
-  validateByToken,
+  isOnResendCooldown,
+  RESEND_COOLDOWN_MS,
+  findValidToken,
+  markTokenAsUsed,
 } from "../../src/modules/email/emailVerificationToken.service.js";
 import * as emailVerificationTokenRepository from "../../src/modules/email/emailVerificationToken.repository.js";
 
 vi.mock("../../src/modules/email/emailVerificationToken.repository.js", () => ({
   save: vi.fn(),
   findByToken: vi.fn(),
+  findLatestByUserId: vi.fn(),
   deleteByUserId: vi.fn(),
 }));
 
@@ -43,13 +47,13 @@ describe("emailVerificationTokenService", () => {
     });
   });
 
-  describe("validateByToken", () => {
+  describe("findValidToken", () => {
     it("should throw when the token does not exist", async () => {
       vi.mocked(emailVerificationTokenRepository.findByToken).mockResolvedValue(
         null,
       );
 
-      await expect(validateByToken("unknown-token")).rejects.toThrow(
+      await expect(findValidToken("unknown-token")).rejects.toThrow(
         "Invalid token!",
       );
     });
@@ -61,7 +65,7 @@ describe("emailVerificationTokenService", () => {
         save: vi.fn(),
       } as never);
 
-      await expect(validateByToken("used-token")).rejects.toThrow(
+      await expect(findValidToken("used-token")).rejects.toThrow(
         "Invalid token!",
       );
     });
@@ -73,12 +77,12 @@ describe("emailVerificationTokenService", () => {
         save: vi.fn(),
       } as never);
 
-      await expect(validateByToken("expired-token")).rejects.toThrow(
+      await expect(findValidToken("expired-token")).rejects.toThrow(
         "Invalid token!",
       );
     });
 
-    it("should mark a valid token as used and return it", async () => {
+    it("should return a valid token without consuming it", async () => {
       const save = vi.fn();
       const record = {
         usedAt: null,
@@ -90,10 +94,55 @@ describe("emailVerificationTokenService", () => {
         record as never,
       );
 
-      const result = await validateByToken("valid-token");
+      const result = await findValidToken("valid-token");
 
-      expect(result.usedAt).toBeInstanceOf(Date);
-      expect(save).toHaveBeenCalledOnce();
+      expect(result).toBe(record);
+      expect(result.usedAt).toBeNull();
+      expect(save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("markTokenAsUsed", () => {
+    it("should set usedAt and save the token", async () => {
+      const record = { usedAt: null as Date | null, save: vi.fn() };
+
+      await markTokenAsUsed(record as never);
+
+      expect(record.usedAt).toBeInstanceOf(Date);
+      expect(record.save).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("isOnResendCooldown", () => {
+    it("should return false when the user has no token", async () => {
+      vi.mocked(
+        emailVerificationTokenRepository.findLatestByUserId,
+      ).mockResolvedValue(null);
+
+      await expect(isOnResendCooldown("user-123")).resolves.toBe(false);
+      expect(
+        emailVerificationTokenRepository.findLatestByUserId,
+      ).toHaveBeenCalledWith("user-123");
+    });
+
+    it("should return true when the latest token is within the cooldown", async () => {
+      vi.mocked(
+        emailVerificationTokenRepository.findLatestByUserId,
+      ).mockResolvedValue({
+        createdAt: new Date(Date.now() - RESEND_COOLDOWN_MS + 5_000),
+      } as never);
+
+      await expect(isOnResendCooldown("user-123")).resolves.toBe(true);
+    });
+
+    it("should return false when the cooldown has passed", async () => {
+      vi.mocked(
+        emailVerificationTokenRepository.findLatestByUserId,
+      ).mockResolvedValue({
+        createdAt: new Date(Date.now() - RESEND_COOLDOWN_MS - 1_000),
+      } as never);
+
+      await expect(isOnResendCooldown("user-123")).resolves.toBe(false);
     });
   });
 

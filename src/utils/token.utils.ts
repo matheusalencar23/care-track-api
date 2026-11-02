@@ -16,7 +16,10 @@ export const verifyToken = (token: string): JwtUserPayload => {
   try {
     return jwt.verify(token, JWT_SECRET) as JwtUserPayload;
   } catch (err) {
-    if (err instanceof jwt.TokenExpiredError) {
+    if (
+      err instanceof jwt.TokenExpiredError ||
+      err instanceof jwt.JsonWebTokenError
+    ) {
       throw new UnauthorizedException("Unauthorized");
     }
 

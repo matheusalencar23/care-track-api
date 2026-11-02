@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import jwt from "jsonwebtoken";
 import { authenticationMiddleware } from "../../src/modules/auth/auth.middleware.js";
 import User from "../../src/modules/user/user.model.js";
 import * as tokenUtils from "../../src/utils/token.utils.js";
@@ -20,7 +21,9 @@ vi.mock("../../src/utils/token.utils.js", () => ({
 
 vi.mock("../../src/shared/appLogger.js", () => ({
   AppLogger: {
+    debug: vi.fn(),
     info: vi.fn(),
+    warn: vi.fn(),
     error: vi.fn(),
   },
 }));
@@ -57,8 +60,10 @@ describe("authenticationMiddleware", () => {
   it("should attach the user to the request and call next when the token is valid", async () => {
     vi.mocked(tokenUtils.verifyToken).mockReturnValue({ _id: "123" } as never);
     vi.mocked(User.findOne).mockResolvedValue({
+      id: "123",
       name: "John Doe",
       email: "john@example.com",
+      password: "hashed-password",
     } as never);
 
     const req = createMockRequest({ cookies: { token: "valid-token" } });
@@ -67,7 +72,9 @@ describe("authenticationMiddleware", () => {
 
     await authenticationMiddleware(req, res, next);
 
+    expect(User.findOne).toHaveBeenCalledWith({ _id: "123" });
     expect(req.user).toEqual({
+      id: "123",
       name: "John Doe",
       email: "john@example.com",
     });
@@ -101,5 +108,28 @@ describe("authenticationMiddleware", () => {
     expect(next).toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 500 }),
     );
+  });
+
+  it("should call next with UnauthorizedException when the token has an invalid signature", async () => {
+    const actualTokenUtils = await vi.importActual<typeof tokenUtils>(
+      "../../src/utils/token.utils.js",
+    );
+    vi.mocked(tokenUtils.verifyToken).mockImplementation(
+      actualTokenUtils.verifyToken,
+    );
+
+    const forgedToken = jwt.sign({ _id: "123" }, "wrong-secret");
+
+    const req = createMockRequest({ cookies: { token: forgedToken } });
+    const res = createMockResponse();
+    const next = createMockNext();
+
+    await authenticationMiddleware(req, res, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+    expect(next).not.toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 500 }),
+    );
+    expect(User.findOne).not.toHaveBeenCalled();
   });
 });

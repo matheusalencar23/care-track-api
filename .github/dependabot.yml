@@ -1,0 +1,39 @@
+version: 2
+
+# Os PRs vão para a develop e usam mensagens no padrão do commitlint
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    groups:
+      # Atualizações minor/patch de dependências de desenvolvimento em um PR só
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+      include: scope
+
+  - package-ecosystem: docker
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+      include: scope

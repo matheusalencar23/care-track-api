@@ -7,6 +7,7 @@ import {
   ValidateUserSchema,
 } from "./user.schema.js";
 import { schemaValidationMiddleware } from "../../middlewares/schemaValidation.middleware.js";
+import { emailLimiter } from "../../middlewares/rateLimit.middleware.js";
 
 const routes = Router();
 
@@ -24,6 +25,7 @@ routes.get(
 
 routes.post(
   "/resend",
+  emailLimiter,
   schemaValidationMiddleware(ResendValidationEmailSchema),
   userController.resendValidation,
 );

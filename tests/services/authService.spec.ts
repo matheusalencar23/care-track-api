@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { login } from "../../src/modules/auth/auth.service.js";
 import * as userRepository from "../../src/modules/user/user.repository.js";
 import * as tokenUtils from "../../src/utils/token.utils.js";
+import { messages } from "../../src/shared/messages.js";
 
 vi.mock("../../src/modules/user/user.repository.js", () => ({
   findByEmail: vi.fn(),
@@ -23,7 +24,7 @@ describe("authService", () => {
 
       await expect(
         login("ghost@example.com", "password123"),
-      ).rejects.toThrow("Invalid credentials");
+      ).rejects.toThrow(messages.INVALID_CREDENTIALS);
 
       expect(tokenUtils.generateToken).not.toHaveBeenCalled();
     });
@@ -36,7 +37,7 @@ describe("authService", () => {
 
       await expect(
         login("john@example.com", "password123"),
-      ).rejects.toThrow("Invalid credentials");
+      ).rejects.toThrow(messages.INVALID_CREDENTIALS);
 
       expect(tokenUtils.generateToken).not.toHaveBeenCalled();
     });
@@ -51,7 +52,7 @@ describe("authService", () => {
 
       await expect(
         login("john@example.com", "wrong-password"),
-      ).rejects.toThrow("Invalid credentials");
+      ).rejects.toThrow(messages.INVALID_CREDENTIALS);
 
       expect(authenticate).toHaveBeenCalledWith("wrong-password");
       expect(tokenUtils.generateToken).not.toHaveBeenCalled();

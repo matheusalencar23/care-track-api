@@ -1,4 +1,7 @@
-FROM node:22-alpine AS builder
+# Manter a versão do Node igual à do .nvmrc
+ARG NODE_VERSION=22
+
+FROM node:${NODE_VERSION}-alpine AS builder
 
 WORKDIR /app
 
@@ -12,7 +15,7 @@ COPY src ./src
 RUN npm run build
 
 
-FROM node:22-alpine AS production
+FROM node:${NODE_VERSION}-alpine AS production
 
 WORKDIR /app
 
@@ -23,6 +26,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
 COPY --from=builder /app/dist ./dist
+
+COPY templates ./templates
 
 EXPOSE 3001
 

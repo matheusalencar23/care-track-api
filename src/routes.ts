@@ -2,6 +2,7 @@ import { Router } from "express";
 import userRoutes from "./modules/user/user.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import mongoose from "mongoose";
+import { APP_VERSION } from "./config/appInfo.js";
 import {
   authLimiter,
   generalLimiter,
@@ -18,6 +19,7 @@ routes.get("/health", (_req, res) => {
   return res.status(isDbConnected ? 200 : 503).json({
     status: isDbConnected ? "ok" : "degraded",
     db: isDbConnected ? "connected" : "disconnected",
+    version: APP_VERSION,
   });
 });
 

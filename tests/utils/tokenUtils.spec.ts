@@ -35,7 +35,7 @@ describe("tokenUtils", () => {
     });
 
     it("should throw when the token is invalid", () => {
-      expect(() => verifyToken("invalid-token")).toThrow();
+      expect(() => verifyToken("invalid-token")).toThrow(UnauthorizedException);
     });
 
     it("should throw UnauthorizedException when the token is expired", () => {
