@@ -11,6 +11,14 @@ import * as userRepository from "../../src/modules/user/user.repository.js";
 import * as emailVerificationTokenService from "../../src/modules/email/emailVerificationToken.service.js";
 
 import { sendConfirmationEmail } from "../../src/services/email/email.service.js";
+import { AppLogger } from "../../src/shared/appLogger.js";
+
+vi.mock("../../src/shared/appLogger.js", () => ({
+  AppLogger: {
+    info: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 vi.mock("../../src/modules/user/user.repository.js", () => ({
   findByEmail: vi.fn(),
@@ -81,6 +89,60 @@ describe("userService", () => {
       ).toHaveBeenCalledWith("123");
 
       expect(sendConfirmationEmail).toHaveBeenCalledOnce();
+    });
+
+    // O cadastro não deve ser barrado pelo envio do e-mail: o usuário pode
+    // pedir um novo envio em /users/resend. Se o `.catch` do createUser for
+    // removido, a rejeição fica sem tratamento e o Vitest falha a execução.
+    it("should not fail when sending the confirmation email fails", async () => {
+      vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
+      vi.mocked(userRepository.save).mockResolvedValue({
+        id: "123",
+        email: "john@example.com",
+        name: "John Doe",
+      } as never);
+      vi.mocked(
+        emailVerificationTokenService.createEmailVerificationToken,
+      ).mockResolvedValue("verification-token");
+      vi.mocked(sendConfirmationEmail).mockRejectedValue(
+        new Error("Resend is down"),
+      );
+
+      await expect(
+        createUser("John Doe", "john@example.com", "password123"),
+      ).resolves.toBeUndefined();
+
+      expect(userRepository.save).toHaveBeenCalledOnce();
+
+      await vi.waitFor(() => {
+        expect(AppLogger.error).toHaveBeenCalledWith(
+          "Error sending confirmation email to: john@example.com",
+        );
+      });
+    });
+
+    it("should not fail when creating the verification token fails", async () => {
+      vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
+      vi.mocked(userRepository.save).mockResolvedValue({
+        id: "123",
+        email: "john@example.com",
+        name: "John Doe",
+      } as never);
+      vi.mocked(
+        emailVerificationTokenService.createEmailVerificationToken,
+      ).mockRejectedValue(new Error("DB is down"));
+
+      await expect(
+        createUser("John Doe", "john@example.com", "password123"),
+      ).resolves.toBeUndefined();
+
+      await vi.waitFor(() => {
+        expect(AppLogger.error).toHaveBeenCalledWith(
+          "Error sending confirmation email to: john@example.com",
+        );
+      });
+
+      expect(sendConfirmationEmail).not.toHaveBeenCalled();
     });
   });
 
