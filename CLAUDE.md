@@ -39,4 +39,6 @@ Express 5 + Mongoose + Zod, TypeScript ESM (`"type": "module"`, `NodeNext`). **I
 
 ## Pontos de atenção
 
+O plano do produto, as decisões já tomadas (dono do paciente, papéis na LGPD, encarregado) e as regras legais que orientam o projeto estão em `docs/roadmap.md`. Siga os princípios de arquitetura de lá (isolamento por enfermeira, histórico só de inclusão, auditoria de acesso, arquivos fora do MongoDB) e marque os checkboxes ao concluir itens.
+
 - Os templates HTML de e-mail ficam em `templates/` na raiz e são lidos em tempo de execução via `process.cwd()`, fora do build do `tsc`. Um template novo nessa pasta já entra na imagem (o Dockerfile copia `templates/` no estágio de produção); se mudar o local, ajuste o `COPY` do Dockerfile.
