@@ -12,6 +12,12 @@ updates:
       prefix: chore
       prefix-development: chore
       include: scope
+    ignore:
+      # Os tipos acompanham a versão do Node usada em produção (.nvmrc).
+      # Ao trocar a versão do Node, atualize o @types/node manualmente.
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
     groups:
       # Atualizações minor/patch de dependências de desenvolvimento em um PR só
       dev-dependencies:
