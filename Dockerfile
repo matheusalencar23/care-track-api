@@ -7,6 +7,10 @@ WORKDIR /app
 
 COPY package*.json ./
 
+# O mongodb-memory-server (só para os testes de integração) baixaria o
+# binário do mongod no postinstall
+ENV MONGOMS_DISABLE_POSTINSTALL=1
+
 RUN npm ci
 
 COPY tsconfig*.json ./

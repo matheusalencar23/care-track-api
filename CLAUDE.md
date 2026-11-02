@@ -11,13 +11,15 @@ npm run build      # tsc -p tsconfig.build.json -> dist/
 npm start          # node dist/server.js
 npm run lint       # eslint .
 npm test           # vitest run (todos os testes)
+npm run test:unit         # projeto "unit" do Vitest
+npm run test:integration  # projeto "integration" (MongoDB em memória)
 npm run check      # lint + test + build — o que o CI roda nos PRs para master
 
 npx vitest run tests/services/userService.spec.ts   # um único arquivo
 npx vitest run -t "should throw when user already exists"   # um único teste pelo nome
 ```
 
-Os testes carregam as variáveis de ambiente do `.env.test` via `tests/setup.ts` (`process.loadEnvFile`). O `.env.test` é versionado (só valores fictícios) e é o mesmo usado no CI: ao criar uma variável obrigatória nova, adicione-a nele também. O `src/config/secrets.ts` lança erro já no import se `JWT_SECRET`, `MONGO_DB_URL_CONNECTION`, `RESEND_API_KEY`, `RESEND_EMAIL_ORIGIN` ou `EMAIL_HOST` estiverem ausentes, então qualquer teste que importe código da aplicação precisa desse arquivo. Os testes nunca acessam um banco real — repositórios e serviços são mockados com `vi.mock`.
+Os testes carregam as variáveis de ambiente do `.env.test` via `tests/setup.ts` (`process.loadEnvFile`). O `.env.test` é versionado (só valores fictícios) e é o mesmo usado no CI: ao criar uma variável obrigatória nova, adicione-a nele também. O `src/config/secrets.ts` lança erro já no import se `JWT_SECRET`, `MONGO_DB_URL_CONNECTION`, `RESEND_API_KEY`, `RESEND_EMAIL_ORIGIN` ou `EMAIL_HOST` estiverem ausentes, então qualquer teste que importe código da aplicação precisa desse arquivo. Os testes nunca acessam um banco real. São dois projetos no `vitest.config.ts`: **unit** (`tests/`, exceto `tests/integration/`), com repositórios e serviços mockados com `vi.mock`; e **integration** (`tests/integration/`), que usa `supertest` sobre o `app` e um `mongodb-memory-server` iniciado uma vez no `globalSetup` — cada arquivo conecta num banco próprio, limpo após cada teste (`tests/integration/setup.ts`). Na integração, o único mock é o `email.service` (automock no setup); os tokens enviados por e-mail são lidos das chamadas do mock (`tests/integration/helpers.ts`). Como o Vitest define `NODE_ENV=test`, os rate limiters ficam ativos e seus contadores em memória duram o arquivo todo. Toda rota nova deve ter teste de integração, incluindo o de isolamento entre enfermeiras.
 
 Git hooks (husky): `pre-commit` roda lint + test + build; `commit-msg` roda o commitlint (Conventional Commits, regras em `docs/commits.md`). As mensagens de commit alimentam o semantic-release na `master` (`feat` → minor, `fix` → patch, `!`/`BREAKING CHANGE` → major), que em seguida faz o build e publica a imagem Docker em `ghcr.io/matheusalencar23/care-track-api`. O desenvolvimento acontece na `develop`; os PRs têm como alvo a `master`.
 

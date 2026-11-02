@@ -40,11 +40,18 @@ Nesse modo, a API usa o Mongo do compose e roda com `NODE_ENV=production`, o que
 ## Testes
 
 ```bash
-npm test # roda os testes
-npm run check # lint + test + build
+npm test                 # todos os testes
+npm run test:unit        # só os unitários
+npm run test:integration # só os de integração
+npm run check            # lint + test + build
 ```
 
-Os testes leem as variáveis do arquivo `.env.test`, versionado com valores fictícios e usado também no CI. Ele precisa ter as mesmas chaves obrigatórias do `.env.example`. Nenhum teste acessa o banco ou o Resend de verdade.
+Os testes leem as variáveis do arquivo `.env.test`, versionado com valores fictícios e usado também no CI. Ele precisa ter as mesmas chaves obrigatórias do `.env.example`.
+
+- **Unitários** (`tests/`, exceto `tests/integration/`): repositórios e serviços mockados com `vi.mock`, sem banco.
+- **Integração** (`tests/integration/`): sobem o `app` com `supertest` contra um MongoDB em memória (`mongodb-memory-server`, que baixa o binário do `mongod` no `npm install`). Cada arquivo usa um banco próprio, limpo depois de cada teste. O único mock é o `email.service` — os testes leem o link enviado a partir das chamadas do mock. O Vitest roda com `NODE_ENV=test`, então os rate limits ficam ativos e os contadores (em memória) duram o arquivo inteiro.
+
+Nenhum teste acessa o Resend ou um banco real.
 
 Commits seguem o padrão Conventional Commits, validado pelo commitlint — ver [`docs/commits.md`](docs/commits.md).
 
