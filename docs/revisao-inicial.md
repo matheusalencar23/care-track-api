@@ -66,12 +66,13 @@ O projeto vai tratar dados de saúde, classificados como **dado sensível** pela
 - **Commit sugerido:** `fix(users): rate limit confirmation email resend`
 - **Resolução:** duas camadas. Por IP: `emailLimiter` (5 requisições a cada 15 min, contador próprio) na rota `/resend`. Por usuário: `isOnResendCooldown` bloqueia um novo envio se o último token foi criado há menos de 60s (`RESEND_COOLDOWN_MS`), lançando `TooManyRequestsException`. O controller continua respondendo 200 em qualquer caso, para não permitir enumeração.
 
-### [ ] 8. `req.user` não guarda o `_id` do usuário
+### [X] 8. `req.user` não guarda o `_id` do usuário
 
 - **Onde:** `src/modules/auth/auth.middleware.ts:35`, `src/@types/express/index.d.ts`
 - **Problema:** o middleware só expõe `name` e `email`. Toda consulta de paciente vai precisar filtrar pela enfermeira dona do registro.
 - **Correção:** incluir `id` em `req.user` e no tipo global.
 - **Commit sugerido:** `feat(auth): expose user id on authenticated requests`
+- **Resolução:** `req.user` agora é `{ id, name, email }` (`id` como string, via `user.id` do Mongoose). A resposta do `GET /auth/me` não mudou.
 
 ### [ ] 9. E-mail duplicado em cadastros simultâneos retorna 500
 

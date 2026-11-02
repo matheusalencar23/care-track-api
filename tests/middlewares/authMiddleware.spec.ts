@@ -58,8 +58,10 @@ describe("authenticationMiddleware", () => {
   it("should attach the user to the request and call next when the token is valid", async () => {
     vi.mocked(tokenUtils.verifyToken).mockReturnValue({ _id: "123" } as never);
     vi.mocked(User.findOne).mockResolvedValue({
+      id: "123",
       name: "John Doe",
       email: "john@example.com",
+      password: "hashed-password",
     } as never);
 
     const req = createMockRequest({ cookies: { token: "valid-token" } });
@@ -68,7 +70,9 @@ describe("authenticationMiddleware", () => {
 
     await authenticationMiddleware(req, res, next);
 
+    expect(User.findOne).toHaveBeenCalledWith({ _id: "123" });
     expect(req.user).toEqual({
+      id: "123",
       name: "John Doe",
       email: "john@example.com",
     });

@@ -33,6 +33,7 @@ export const authenticationMiddleware = async (
     }
 
     req.user = {
+      id: user.id,
       name: user.name,
       email: user.email,
     };

@@ -170,6 +170,7 @@ describe("me", () => {
   it("should return the authenticated user's public data", async () => {
     const req = createMockRequest({
       user: {
+        id: "123",
         name: "John Doe",
         email: "john@example.com",
       },
