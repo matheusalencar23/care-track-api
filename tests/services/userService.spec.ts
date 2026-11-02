@@ -6,6 +6,7 @@ import {
   validateUser,
 } from "../../src/modules/user/user.service.js";
 import { messages } from "../../src/shared/messages.js";
+import { TooManyRequestsException } from "../../src/shared/exceptions/index.js";
 
 import * as userRepository from "../../src/modules/user/user.repository.js";
 import * as emailVerificationTokenService from "../../src/modules/email/emailVerificationToken.service.js";
@@ -29,6 +30,7 @@ vi.mock("../../src/modules/user/user.repository.js", () => ({
 vi.mock("../../src/modules/email/emailVerificationToken.service.js", () => ({
   createEmailVerificationToken: vi.fn(),
   validateByToken: vi.fn(),
+  isOnResendCooldown: vi.fn(),
 }));
 
 vi.mock("../../src/services/email/email.service.js", () => ({
@@ -250,6 +252,30 @@ describe("userService", () => {
       ).toHaveBeenCalledWith("123");
 
       expect(sendConfirmationEmail).toHaveBeenCalledOnce();
+    });
+
+    it("should not resend the email while the previous one is on cooldown", async () => {
+      vi.mocked(userRepository.findByEmail).mockResolvedValue({
+        id: "123",
+        name: "John Doe",
+        emailVerifiedAt: null,
+      } as never);
+
+      vi.mocked(
+        emailVerificationTokenService.isOnResendCooldown,
+      ).mockResolvedValue(true);
+
+      await expect(resendValidation("john@example.com")).rejects.toBeInstanceOf(
+        TooManyRequestsException,
+      );
+
+      expect(
+        emailVerificationTokenService.isOnResendCooldown,
+      ).toHaveBeenCalledWith("123");
+      expect(
+        emailVerificationTokenService.createEmailVerificationToken,
+      ).not.toHaveBeenCalled();
+      expect(sendConfirmationEmail).not.toHaveBeenCalled();
     });
   });
 });

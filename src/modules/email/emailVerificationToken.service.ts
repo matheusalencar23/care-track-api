@@ -2,12 +2,25 @@ import { createHash, randomBytes } from "node:crypto";
 import * as emailVerificationTokenRepository from "./emailVerificationToken.repository.js";
 import { UnprocessableEntityException } from "../../shared/exceptions/index.js";
 
+export const RESEND_COOLDOWN_MS = 60 * 1000;
+
 export const createEmailVerificationToken = async (userId: string) => {
   const token = randomBytes(32).toString("hex");
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
   await emailVerificationTokenRepository.save(userId, tokenHash, expiresAt);
   return token;
+};
+
+export const isOnResendCooldown = async (userId: string) => {
+  const latestToken =
+    await emailVerificationTokenRepository.findLatestByUserId(userId);
+
+  if (!latestToken) {
+    return false;
+  }
+
+  return Date.now() - latestToken.createdAt.getTime() < RESEND_COOLDOWN_MS;
 };
 
 export const validateByToken = async (token: string) => {

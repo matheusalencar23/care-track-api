@@ -2,6 +2,7 @@ import * as userRepository from "./user.repository.js";
 import {
   BadRequestException,
   NotFoundException,
+  TooManyRequestsException,
   UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
 import { messages } from "../../shared/messages.js";
@@ -55,6 +56,12 @@ export const resendValidation = async (email: string) => {
 
   if (user.emailVerifiedAt) {
     throw new UnprocessableEntityException("Email already verified!", []);
+  }
+
+  if (await emailVerificationTokenService.isOnResendCooldown(user.id)) {
+    throw new TooManyRequestsException(
+      "Confirmation email was sent recently, try again later",
+    );
   }
 
   await createValidationEmail(user.id, email, user.name);

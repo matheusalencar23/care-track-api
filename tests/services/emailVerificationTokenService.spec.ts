@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createEmailVerificationToken,
   deleteVerificationTokenByUserId,
+  isOnResendCooldown,
+  RESEND_COOLDOWN_MS,
   validateByToken,
 } from "../../src/modules/email/emailVerificationToken.service.js";
 import * as emailVerificationTokenRepository from "../../src/modules/email/emailVerificationToken.repository.js";
@@ -11,6 +13,7 @@ import * as emailVerificationTokenRepository from "../../src/modules/email/email
 vi.mock("../../src/modules/email/emailVerificationToken.repository.js", () => ({
   save: vi.fn(),
   findByToken: vi.fn(),
+  findLatestByUserId: vi.fn(),
   deleteByUserId: vi.fn(),
 }));
 
@@ -94,6 +97,39 @@ describe("emailVerificationTokenService", () => {
 
       expect(result.usedAt).toBeInstanceOf(Date);
       expect(save).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("isOnResendCooldown", () => {
+    it("should return false when the user has no token", async () => {
+      vi.mocked(
+        emailVerificationTokenRepository.findLatestByUserId,
+      ).mockResolvedValue(null);
+
+      await expect(isOnResendCooldown("user-123")).resolves.toBe(false);
+      expect(
+        emailVerificationTokenRepository.findLatestByUserId,
+      ).toHaveBeenCalledWith("user-123");
+    });
+
+    it("should return true when the latest token is within the cooldown", async () => {
+      vi.mocked(
+        emailVerificationTokenRepository.findLatestByUserId,
+      ).mockResolvedValue({
+        createdAt: new Date(Date.now() - RESEND_COOLDOWN_MS + 5_000),
+      } as never);
+
+      await expect(isOnResendCooldown("user-123")).resolves.toBe(true);
+    });
+
+    it("should return false when the cooldown has passed", async () => {
+      vi.mocked(
+        emailVerificationTokenRepository.findLatestByUserId,
+      ).mockResolvedValue({
+        createdAt: new Date(Date.now() - RESEND_COOLDOWN_MS - 1_000),
+      } as never);
+
+      await expect(isOnResendCooldown("user-123")).resolves.toBe(false);
     });
   });
 

@@ -5,6 +5,8 @@ export interface IEmailVerificationToken extends Document {
   tokenHash: string;
   expiresAt: Date;
   usedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const emailVerificationTokenSchema =
