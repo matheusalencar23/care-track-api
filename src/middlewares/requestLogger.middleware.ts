@@ -21,7 +21,7 @@ export const requestLoggerMiddleware = (
 
   res.setHeader(REQUEST_ID_HEADER, requestId);
 
-  runWithRequestContext({ requestId }, () => {
+  runWithRequestContext({ requestId, ip: req.ip }, () => {
     res.on("finish", () => {
       const context = {
         method: req.method,

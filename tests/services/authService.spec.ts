@@ -11,6 +11,11 @@ import { sendPasswordResetEmail } from "../../src/services/email/email.service.j
 import * as tokenUtils from "../../src/utils/token.utils.js";
 import { messages } from "../../src/shared/messages.js";
 import { AppLogger } from "../../src/shared/appLogger.js";
+import * as auditLogService from "../../src/modules/audit/auditLog.service.js";
+
+vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
+  record: vi.fn(),
+}));
 
 vi.mock("../../src/modules/user/user.repository.js", () => ({
   findByEmail: vi.fn(),
@@ -91,6 +96,7 @@ describe("authService", () => {
 
       vi.mocked(userRepository.findByEmail).mockResolvedValue({
         _id: "123",
+        id: "123",
         emailVerifiedAt: new Date(),
         authenticate,
       } as never);
@@ -101,6 +107,29 @@ describe("authService", () => {
 
       expect(token).toBe("jwt-token");
       expect(tokenUtils.generateToken).toHaveBeenCalledWith({ _id: "123" });
+      expect(auditLogService.record).toHaveBeenCalledWith({
+        userId: "123",
+        action: "auth.signin",
+        resourceType: "user",
+        resourceId: "123",
+      });
+    });
+
+    it("should not return a token when the audit log cannot be written", async () => {
+      vi.mocked(userRepository.findByEmail).mockResolvedValue({
+        _id: "123",
+        id: "123",
+        emailVerifiedAt: new Date(),
+        authenticate: vi.fn().mockResolvedValue(true),
+      } as never);
+      vi.mocked(auditLogService.record).mockRejectedValueOnce(
+        new Error("DB is down"),
+      );
+
+      await expect(login("john@example.com", "password123")).rejects.toThrow(
+        "DB is down",
+      );
+      expect(tokenUtils.generateToken).not.toHaveBeenCalled();
     });
   });
 
@@ -223,6 +252,12 @@ describe("authService", () => {
       expect(
         passwordResetTokenService.invalidateUserTokens,
       ).toHaveBeenCalledWith("123");
+      expect(auditLogService.record).toHaveBeenCalledWith({
+        userId: "123",
+        action: "auth.password_reset",
+        resourceType: "user",
+        resourceId: "123",
+      });
       expect(
         vi.mocked(passwordResetTokenService.invalidateUserTokens).mock
           .invocationCallOrder[0],

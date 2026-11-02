@@ -1,5 +1,6 @@
 import * as userRepository from "../user/user.repository.js";
 import * as passwordResetTokenService from "./passwordResetToken.service.js";
+import * as auditLogService from "../audit/auditLog.service.js";
 import {
   BadRequestException,
   UnprocessableEntityException,
@@ -22,6 +23,13 @@ export const login = async (email: string, password: string) => {
   if (!isPasswordMatched) {
     throw new BadRequestException(messages.INVALID_CREDENTIALS);
   }
+
+  await auditLogService.record({
+    userId: user.id,
+    action: "auth.signin",
+    resourceType: "user",
+    resourceId: user.id,
+  });
 
   const token = generateToken({ _id: user._id });
   return token;
@@ -66,6 +74,12 @@ export const resetPassword = async (token: string, password: string) => {
   // Os tokens só são consumidos depois que a nova senha foi gravada: se algo
   // falhar antes, o mesmo link continua funcionando.
   await passwordResetTokenService.invalidateUserTokens(user.id);
+  await auditLogService.record({
+    userId: user.id,
+    action: "auth.password_reset",
+    resourceType: "user",
+    resourceId: user.id,
+  });
   AppLogger.info("Password reset", { userId: user.id });
 };
 

@@ -13,6 +13,7 @@ import {
   resetPassword as resetPasswordService,
 } from "../../src/modules/auth/auth.service.js";
 import { UnauthorizedException } from "../../src/shared/exceptions/index.js";
+import { record } from "../../src/modules/audit/auditLog.service.js";
 import { messages } from "../../src/shared/messages.js";
 import {
   createMockNext,
@@ -24,6 +25,10 @@ vi.mock("../../src/modules/auth/auth.service.js", () => ({
   login: vi.fn(),
   requestPasswordReset: vi.fn(),
   resetPassword: vi.fn(),
+}));
+
+vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
+  record: vi.fn(),
 }));
 
 vi.mock("../../src/shared/appLogger.js", () => ({
@@ -145,7 +150,15 @@ describe("signout", () => {
   });
 
   it("should clear the authentication cookie and respond with 204", async () => {
-    const req = createMockRequest({});
+    const req = createMockRequest({
+      user: {
+        id: "123",
+        name: "John Doe",
+        email: "john@example.com",
+        coren: "123456",
+        corenState: "SP",
+      },
+    });
     const res = createMockResponse();
     const next = createMockNext();
 
@@ -161,6 +174,24 @@ describe("signout", () => {
     expect(res.status).toHaveBeenCalledWith(204);
     expect(res.send).toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
+    expect(record).toHaveBeenCalledWith({
+      userId: "123",
+      action: "auth.signout",
+      resourceType: "user",
+      resourceId: "123",
+    });
+  });
+
+  it("should call next with UnauthorizedException when there is no authenticated user", async () => {
+    const req = createMockRequest({});
+    const res = createMockResponse();
+    const next = createMockNext();
+
+    await signout(req, res, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+    expect(res.clearCookie).not.toHaveBeenCalled();
+    expect(record).not.toHaveBeenCalled();
   });
 });
 
