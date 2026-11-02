@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import * as emailVerificationTokenRepository from "./emailVerificationToken.repository.js";
+import type { IEmailVerificationToken } from "./emailVerificationToken.model.js";
 import { UnprocessableEntityException } from "../../shared/exceptions/index.js";
 
 export const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -23,7 +24,9 @@ export const isOnResendCooldown = async (userId: string) => {
   return Date.now() - latestToken.createdAt.getTime() < RESEND_COOLDOWN_MS;
 };
 
-export const validateByToken = async (token: string) => {
+// Só verifica o token, sem consumi-lo: quem chama decide quando marcá-lo
+// como usado (depois de concluir a operação que ele autoriza).
+export const findValidToken = async (token: string) => {
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const emailVerificationToken =
     await emailVerificationTokenRepository.findByToken(tokenHash);
@@ -36,10 +39,14 @@ export const validateByToken = async (token: string) => {
     throw new UnprocessableEntityException("Invalid token!", []);
   }
 
+  return emailVerificationToken;
+};
+
+export const markTokenAsUsed = async (
+  emailVerificationToken: IEmailVerificationToken,
+) => {
   emailVerificationToken.usedAt = new Date();
   await emailVerificationToken.save();
-
-  return emailVerificationToken;
 };
 
 export const deleteVerificationTokenByUserId = async (userId: string) => {

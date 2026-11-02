@@ -30,21 +30,25 @@ export const createUser = async (
 
 export const validateUser = async (token: string) => {
   const emailVerificationToken =
-    await emailVerificationTokenService.validateByToken(token);
+    await emailVerificationTokenService.findValidToken(token);
   const user = await userRepository.findById(
     emailVerificationToken.userId.toString(),
   );
 
-  if (user?.emailVerifiedAt) {
+  if (!user) {
+    throw new UnprocessableEntityException("Invalid token!", []);
+  }
+
+  if (user.emailVerifiedAt) {
     throw new UnprocessableEntityException("Email already verified!", []);
   }
 
-  if (user) {
-    user.emailVerifiedAt = new Date();
-    await user?.save();
-  }
+  user.emailVerifiedAt = new Date();
+  await user.save();
 
-  return;
+  // O token só é consumido depois que a verificação foi gravada: se algo
+  // falhar antes, o mesmo link continua funcionando.
+  await emailVerificationTokenService.markTokenAsUsed(emailVerificationToken);
 };
 
 export const resendValidation = async (email: string) => {

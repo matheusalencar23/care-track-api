@@ -124,8 +124,8 @@ O projeto vai tratar dados de saúde, classificados como **dado sensível** pela
 - **Commit sugerido:** `chore: add docker compose for local development`
 - **Resolução:** `docker-compose.yml` com o MongoDB 8.0 (volume `mongo-data` e healthcheck) e a API no profile `app`, construída a partir do `Dockerfile` e apontada para o Mongo do compose. README atualizado.
 
-### [ ] 15. Pequenos ajustes
+### [X] 15. Pequenos ajustes
 
-- [ ] Remover `@types/mongoose` e `@types/pino` do `package.json`: são pacotes obsoletos, as duas bibliotecas já trazem os próprios tipos. (`chore: remove deprecated type packages`)
-- [ ] Corrigir `"main": "src/server.js"` em `package.json:5`, que aponta para um arquivo inexistente (deveria ser `dist/server.js`). (`chore: fix package main entry`)
-- [ ] Em `validateUser` (`src/modules/user/user.service.ts:30-39`), o token é marcado como usado antes de checar se o usuário existe; se o usuário não existir, a rota responde 200 sem fazer nada. (`fix(users): validate user before consuming token`)
+- [X] Remover `@types/mongoose` e `@types/pino` do `package.json`: são pacotes obsoletos, as duas bibliotecas já trazem os próprios tipos. (`chore: remove deprecated type packages`) — removido também o `@types/bcryptjs`, já que o `bcryptjs` 3 traz os próprios tipos.
+- [X] Corrigir `"main": "src/server.js"` em `package.json:5`, que aponta para um arquivo inexistente (deveria ser `dist/server.js`). (`chore: fix package main entry`)
+- [X] Em `validateUser` (`src/modules/user/user.service.ts:30-39`), o token é marcado como usado antes de checar se o usuário existe; se o usuário não existir, a rota responde 200 sem fazer nada. (`fix(users): validate user before consuming token`) — `validateByToken` foi dividido em `findValidToken` (só verifica) e `markTokenAsUsed`; o `validateUser` só consome o token depois de gravar o `emailVerifiedAt`, e responde "Invalid token!" se o usuário não existir.

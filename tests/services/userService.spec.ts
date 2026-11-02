@@ -31,7 +31,8 @@ vi.mock("../../src/modules/user/user.repository.js", () => ({
 
 vi.mock("../../src/modules/email/emailVerificationToken.service.js", () => ({
   createEmailVerificationToken: vi.fn(),
-  validateByToken: vi.fn(),
+  findValidToken: vi.fn(),
+  markTokenAsUsed: vi.fn(),
   isOnResendCooldown: vi.fn(),
 }));
 
@@ -153,39 +154,55 @@ describe("userService", () => {
   });
 
   describe("validateUser", () => {
+    const tokenRecord = { userId: { toString: () => "123" } };
+
     beforeEach(() => {
       vi.clearAllMocks();
     });
 
-    it("should mark the user's email as verified for a valid token", async () => {
-      vi.mocked(
-        emailVerificationTokenService.validateByToken,
-      ).mockResolvedValue({
-        userId: { toString: () => "123" },
-      } as never);
+    it("should mark the user's email as verified and then consume the token", async () => {
+      vi.mocked(emailVerificationTokenService.findValidToken).mockResolvedValue(
+        tokenRecord as never,
+      );
 
-      const save = vi.fn();
-      vi.mocked(userRepository.findById).mockResolvedValue({
-        emailVerifiedAt: null,
-        save,
-      } as never);
+      const user = { emailVerifiedAt: null as Date | null, save: vi.fn() };
+      vi.mocked(userRepository.findById).mockResolvedValue(user as never);
 
       await validateUser("valid-token");
 
-      expect(
-        emailVerificationTokenService.validateByToken,
-      ).toHaveBeenCalledWith("valid-token");
+      expect(emailVerificationTokenService.findValidToken).toHaveBeenCalledWith(
+        "valid-token",
+      );
       expect(userRepository.findById).toHaveBeenCalledWith("123");
-      expect(save).toHaveBeenCalledOnce();
+      expect(user.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(user.save).toHaveBeenCalledOnce();
+      expect(emailVerificationTokenService.markTokenAsUsed).toHaveBeenCalledWith(
+        tokenRecord,
+      );
+      expect(
+        vi.mocked(emailVerificationTokenService.markTokenAsUsed).mock
+          .invocationCallOrder[0],
+      ).toBeGreaterThan(user.save.mock.invocationCallOrder[0]!);
     });
 
-    it("should throw when the email is already verified", async () => {
-      vi.mocked(
-        emailVerificationTokenService.validateByToken,
-      ).mockResolvedValue({
-        userId: { toString: () => "123" },
-      } as never);
+    it("should throw and keep the token when the user no longer exists", async () => {
+      vi.mocked(emailVerificationTokenService.findValidToken).mockResolvedValue(
+        tokenRecord as never,
+      );
+      vi.mocked(userRepository.findById).mockResolvedValue(null);
 
+      await expect(validateUser("valid-token")).rejects.toThrow(
+        "Invalid token!",
+      );
+      expect(
+        emailVerificationTokenService.markTokenAsUsed,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("should throw and keep the token when the email is already verified", async () => {
+      vi.mocked(emailVerificationTokenService.findValidToken).mockResolvedValue(
+        tokenRecord as never,
+      );
       vi.mocked(userRepository.findById).mockResolvedValue({
         emailVerifiedAt: new Date(),
         save: vi.fn(),
@@ -194,13 +211,31 @@ describe("userService", () => {
       await expect(validateUser("valid-token")).rejects.toThrow(
         "Email already verified!",
       );
+      expect(
+        emailVerificationTokenService.markTokenAsUsed,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("should keep the token when saving the user fails", async () => {
+      vi.mocked(emailVerificationTokenService.findValidToken).mockResolvedValue(
+        tokenRecord as never,
+      );
+      vi.mocked(userRepository.findById).mockResolvedValue({
+        emailVerifiedAt: null,
+        save: vi.fn().mockRejectedValue(new Error("DB is down")),
+      } as never);
+
+      await expect(validateUser("valid-token")).rejects.toThrow("DB is down");
+      expect(
+        emailVerificationTokenService.markTokenAsUsed,
+      ).not.toHaveBeenCalled();
     });
 
     it("should propagate the error when the token itself is invalid or expired", async () => {
       const error = new Error("Invalid token!");
-      vi.mocked(
-        emailVerificationTokenService.validateByToken,
-      ).mockRejectedValue(error);
+      vi.mocked(emailVerificationTokenService.findValidToken).mockRejectedValue(
+        error,
+      );
 
       await expect(validateUser("bad-token")).rejects.toThrow(error);
       expect(userRepository.findById).not.toHaveBeenCalled();
