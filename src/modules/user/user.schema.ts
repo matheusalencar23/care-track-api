@@ -6,7 +6,9 @@ export const SignupSchema = z.object({
     email: z.email("Email inválido"),
     password: z
       .string("A senha é obrigatória")
-      .nonempty("A senha é obrigatória"),
+      .nonempty("A senha é obrigatória")
+      .min(8, "A senha deve ter pelo menos 8 caracteres")
+      .max(72, "A senha deve ter no máximo 72 caracteres"),
   }),
 });
 
