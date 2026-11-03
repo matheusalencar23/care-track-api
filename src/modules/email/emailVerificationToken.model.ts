@@ -1,44 +1,23 @@
-import mongoose, { Document } from "mongoose";
+import { index, pgTable, text, uuid } from "drizzle-orm/pg-core";
+import { createdAt, id, timestamptz } from "../../db/columns.js";
+import { users } from "../user/user.model.js";
 
-export interface IEmailVerificationToken extends Document {
-  userId: mongoose.Types.ObjectId;
-  tokenHash: string;
-  expiresAt: Date;
-  usedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const emailVerificationTokenSchema =
-  new mongoose.Schema<IEmailVerificationToken>(
-    {
-      userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-      },
-      tokenHash: {
-        type: String,
-        required: true,
-        unique: true,
-      },
-      expiresAt: {
-        type: Date,
-        required: true,
-      },
-      usedAt: {
-        type: Date,
-        default: null,
-      },
-    },
-    { timestamps: true },
-  );
-
-emailVerificationTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-const EmailVerificationToken = mongoose.model(
-  "EmailVerificationToken",
-  emailVerificationTokenSchema,
+export const emailVerificationTokens = pgTable(
+  "email_verification_tokens",
+  {
+    id: id(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    tokenHash: text()
+      .notNull()
+      .unique("email_verification_tokens_token_hash_unique"),
+    expiresAt: timestamptz().notNull(),
+    usedAt: timestamptz(),
+    createdAt: createdAt(),
+  },
+  (table) => [index().on(table.userId, table.createdAt.desc())],
 );
 
-export default EmailVerificationToken;
+export type EmailVerificationToken =
+  typeof emailVerificationTokens.$inferSelect;

@@ -1,79 +1,37 @@
-import mongoose, { Document } from "mongoose";
-import { normalizeForSearch } from "../../utils/string.utils.js";
-import { ownerScopePlugin } from "../../db/ownerScope.plugin.js";
+import { date, index, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  createdAt,
+  id,
+  ownerIsolationPolicy,
+  timestamptz,
+  updatedAt,
+} from "../../db/columns.js";
+import { users } from "../user/user.model.js";
 
-export interface IPatient extends Document {
-  ownerId: mongoose.Types.ObjectId;
-  name: string;
-  searchName: string;
-  birthDate: Date;
-  cpf: string | null;
-  cns: string | null;
-  phone: string | null;
-  archivedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const patientSchema = new mongoose.Schema<IPatient>(
+export const patients = pgTable(
+  "patients",
   {
-    ownerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      immutable: true,
-    },
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    searchName: {
-      type: String,
-      required: true,
-    },
-    birthDate: {
-      type: Date,
-      required: true,
-    },
-    cpf: {
-      type: String,
-      default: null,
-    },
-    cns: {
-      type: String,
-      default: null,
-    },
-    phone: {
-      type: String,
-      default: null,
-    },
-    archivedAt: {
-      type: Date,
-      default: null,
-    },
+    id: id(),
+    ownerId: uuid()
+      .notNull()
+      .references(() => users.id),
+    name: text().notNull(),
+    searchName: text().notNull(),
+    birthDate: date({ mode: "string" }).notNull(),
+    cpf: text(),
+    cns: text(),
+    phone: text(),
+    archivedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
   },
-  { timestamps: true },
+  (table) => [
+    unique("patients_owner_id_id_unique").on(table.ownerId, table.id),
+    unique("patients_owner_id_cpf_unique").on(table.ownerId, table.cpf),
+    unique("patients_owner_id_cns_unique").on(table.ownerId, table.cns),
+    index().on(table.ownerId, table.searchName, table.id),
+    ownerIsolationPolicy("patients"),
+  ],
 );
 
-patientSchema.plugin(ownerScopePlugin);
-
-patientSchema.index({ ownerId: 1, archivedAt: 1, searchName: 1 });
-patientSchema.index(
-  { ownerId: 1, cpf: 1 },
-  { unique: true, partialFilterExpression: { cpf: { $type: "string" } } },
-);
-patientSchema.index(
-  { ownerId: 1, cns: 1 },
-  { unique: true, partialFilterExpression: { cns: { $type: "string" } } },
-);
-
-patientSchema.pre("validate", function () {
-  if (this.isModified("name")) {
-    this.searchName = normalizeForSearch(this.name);
-  }
-});
-
-const Patient = mongoose.model("Patient", patientSchema);
-
-export default Patient;
+export type Patient = typeof patients.$inferSelect;

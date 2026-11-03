@@ -1,11 +1,13 @@
-import mongoose from "mongoose";
+import { randomUUID } from "node:crypto";
+import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 
 import app from "../../src/app.js";
-import AuditLog from "../../src/modules/audit/auditLog.model.js";
+import { auditLogs } from "../../src/modules/audit/auditLog.model.js";
 import { messages } from "../../src/shared/messages.js";
-import { API, createVerifiedUser, userData } from "./helpers.js";
+import { API, createVerifiedUser, findAuditLogs, userData } from "./helpers.js";
+import { countRows } from "./database.js";
 
 const patientData = {
   name: "José da Silva",
@@ -98,7 +100,7 @@ describe("patients", () => {
 
   it("should return 404 for a patient that does not exist", async () => {
     const { agent } = await signedInAgent();
-    const id = new mongoose.Types.ObjectId().toString();
+    const id = randomUUID();
 
     const response = await agent.get(`${API}/patients/${id}`).expect(404);
     expect(response.body.message).toBe(messages.PATIENT_NOT_FOUND);
@@ -332,22 +334,20 @@ describe("patients", () => {
       await agent.post(`${API}/patients/${id}/archive`).expect(200);
       await agent.post(`${API}/patients/${id}/unarchive`).expect(200);
 
-      const logs = await AuditLog.find({
-        action: { $in: ["patient.archive", "patient.unarchive"] },
-      })
-        .sort({ createdAt: 1, _id: 1 })
-        .lean();
+      const logs = await findAuditLogs(
+        inArray(auditLogs.action, ["patient.archive", "patient.unarchive"]),
+      );
 
       expect(logs).toMatchObject([
         {
           action: "patient.archive",
-          userId: user._id,
-          patientId: new mongoose.Types.ObjectId(id),
+          userId: user.id,
+          patientId: id,
         },
         {
           action: "patient.unarchive",
-          userId: user._id,
-          patientId: new mongoose.Types.ObjectId(id),
+          userId: user.id,
+          patientId: id,
         },
       ]);
     });
@@ -409,9 +409,7 @@ describe("patients", () => {
         .send({ name: "José", birthDate: "1950-03-15" })
         .expect(200);
 
-      const logs = await AuditLog.find({ resourceType: "patient" })
-        .sort({ createdAt: 1, _id: 1 })
-        .lean();
+      const logs = await findAuditLogs(eq(auditLogs.resourceType, "patient"));
 
       expect(logs.map((log) => log.action)).toEqual([
         "patient.create",
@@ -420,15 +418,15 @@ describe("patients", () => {
         "patient.update",
       ]);
       for (const log of logs) {
-        expect(log.userId).toEqual(user._id);
+        expect(log.userId).toBe(user.id);
       }
       expect(logs[1]).toMatchObject({
-        resourceId: new mongoose.Types.ObjectId(id),
-        patientId: new mongoose.Types.ObjectId(id),
+        resourceId: id,
+        patientId: id,
       });
       expect(logs[2]).toMatchObject({
-        resourceId: new mongoose.Types.ObjectId(id),
-        patientId: new mongoose.Types.ObjectId(id),
+        resourceId: id,
+        patientId: id,
       });
     });
 
@@ -448,8 +446,8 @@ describe("patients", () => {
         .query({ limit: 2 })
         .expect(200);
 
-      const logs = await AuditLog.find({ action: "patient.list" }).lean();
-      expect(logs.map((log) => log.patientId?.toString()).sort()).toEqual(
+      const logs = await findAuditLogs(eq(auditLogs.action, "patient.list"));
+      expect(logs.map((log) => log.patientId).sort()).toEqual(
         [ids[0], ids[1]].sort(),
       );
       for (const log of logs) {
@@ -465,7 +463,7 @@ describe("patients", () => {
         .query({ search: "ninguém" })
         .expect(200);
 
-      const logs = await AuditLog.find({ action: "patient.list" }).lean();
+      const logs = await findAuditLogs(eq(auditLogs.action, "patient.list"));
       expect(logs).toHaveLength(1);
       expect(logs[0]?.patientId).toBeNull();
     });
@@ -482,7 +480,9 @@ describe("patients", () => {
 
       await other.get(`${API}/patients/${created.body.id}`).expect(404);
 
-      expect(await AuditLog.countDocuments({ action: "patient.read" })).toBe(0);
+      expect(
+        await countRows(auditLogs, eq(auditLogs.action, "patient.read")),
+      ).toBe(0);
     });
   });
 });

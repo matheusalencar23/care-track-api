@@ -1,5 +1,8 @@
+import { asc, type SQL } from "drizzle-orm";
 import { vi } from "vitest";
-import User from "../../src/modules/user/user.model.js";
+import { auditLogs } from "../../src/modules/audit/auditLog.model.js";
+import { testDb } from "./database.js";
+import * as userRepository from "../../src/modules/user/user.repository.js";
 import {
   sendConfirmationEmail,
   sendPasswordResetEmail,
@@ -18,11 +21,14 @@ export const userData = {
 export const createVerifiedUser = async (
   overrides: Partial<typeof userData> = {},
 ) => {
-  return await User.create({
-    ...userData,
-    ...overrides,
-    emailVerifiedAt: new Date(),
-  });
+  const user = await userRepository.save({ ...userData, ...overrides });
+  await userRepository.markEmailVerified(user.id, new Date());
+
+  return user;
+};
+
+export const createUnverifiedUser = async () => {
+  return await userRepository.save(userData);
 };
 
 const tokenFromUrl = (url: unknown) =>
@@ -46,4 +52,12 @@ export const waitForPasswordResetToken = async () => {
     }
     return tokenFromUrl(call[2]);
   });
+};
+
+export const findAuditLogs = async (where?: SQL) => {
+  return await testDb()
+    .select()
+    .from(auditLogs)
+    .where(where)
+    .orderBy(asc(auditLogs.createdAt), asc(auditLogs.id));
 };

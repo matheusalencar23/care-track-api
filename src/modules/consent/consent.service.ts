@@ -1,8 +1,7 @@
-import type { HydratedDocument } from "mongoose";
 import * as consentRepository from "./consent.repository.js";
 import * as patientRepository from "../patient/patient.repository.js";
 import * as auditLogService from "../audit/auditLog.service.js";
-import type { ConsentType, IConsent } from "./consent.model.js";
+import type { Consent, ConsentType } from "./consent.model.js";
 import type { ConsentData } from "./consent.schema.js";
 import {
   ConflictException,
@@ -11,12 +10,13 @@ import {
 } from "../../shared/exceptions/index.js";
 import { messages } from "../../shared/messages.js";
 import { AppLogger } from "../../shared/appLogger.js";
+import { withOwnerScope } from "../../db/db.js";
 
 const AGE_OF_MAJORITY = 18;
 
-export const toConsentResponse = (consent: HydratedDocument<IConsent>) => ({
+export const toConsentResponse = (consent: Consent) => ({
   id: consent.id,
-  patientId: consent.patientId.toString(),
+  patientId: consent.patientId,
   type: consent.type,
   method: consent.method,
   grantor: consent.grantor,
@@ -28,7 +28,7 @@ export const toConsentResponse = (consent: HydratedDocument<IConsent>) => ({
   createdAt: consent.createdAt,
 });
 
-const isMinorAt = (birthDate: Date, date: Date) => {
+const isMinorAt = (birthDate: string, date: Date) => {
   const adulthood = new Date(birthDate);
   adulthood.setUTCFullYear(adulthood.getUTCFullYear() + AGE_OF_MAJORITY);
 
@@ -50,40 +50,47 @@ export const grantConsent = async (
   patientId: string,
   data: ConsentData,
 ) => {
-  const patient = await findPatientOrThrow(ownerId, patientId);
+  const consent = await withOwnerScope(ownerId, async () => {
+    const patient = await findPatientOrThrow(ownerId, patientId);
 
-  if (patient.archivedAt) {
-    throw new ConflictException(messages.PATIENT_ARCHIVED);
-  }
+    if (patient.archivedAt) {
+      throw new ConflictException(messages.PATIENT_ARCHIVED);
+    }
 
-  const collectedAt = data.collectedAt
-    ? new Date(data.collectedAt)
-    : new Date();
+    const collectedAt = data.collectedAt
+      ? new Date(data.collectedAt)
+      : new Date();
 
-  if (data.grantor === "patient" && isMinorAt(patient.birthDate, collectedAt)) {
-    throw new UnprocessableEntityException(
-      messages.CONSENT_REQUIRES_REPRESENTATIVE,
-      [],
+    if (
+      data.grantor === "patient" &&
+      isMinorAt(patient.birthDate, collectedAt)
+    ) {
+      throw new UnprocessableEntityException(
+        messages.CONSENT_REQUIRES_REPRESENTATIVE,
+        [],
+      );
+    }
+
+    if (await consentRepository.findActive(ownerId, patientId, data.type)) {
+      throw new ConflictException(messages.CONSENT_ALREADY_ACTIVE);
+    }
+
+    const consent = await consentRepository.save(
+      ownerId,
+      patientId,
+      data,
+      collectedAt,
     );
-  }
 
-  if (await consentRepository.findActive(ownerId, patientId, data.type)) {
-    throw new ConflictException(messages.CONSENT_ALREADY_ACTIVE);
-  }
+    await auditLogService.record({
+      userId: ownerId,
+      action: "consent.grant",
+      resourceType: "consent",
+      resourceId: consent.id,
+      patientId,
+    });
 
-  const consent = await consentRepository.save(
-    ownerId,
-    patientId,
-    data,
-    collectedAt,
-  );
-
-  await auditLogService.record({
-    userId: ownerId,
-    action: "consent.grant",
-    resourceType: "consent",
-    resourceId: consent.id,
-    patientId,
+    return consent;
   });
   AppLogger.info("Consent granted", { consentId: consent.id, patientId });
 
@@ -91,15 +98,19 @@ export const grantConsent = async (
 };
 
 export const listConsents = async (ownerId: string, patientId: string) => {
-  await findPatientOrThrow(ownerId, patientId);
+  const consents = await withOwnerScope(ownerId, async () => {
+    await findPatientOrThrow(ownerId, patientId);
 
-  const consents = await consentRepository.listForPatient(ownerId, patientId);
+    const consents = await consentRepository.listForPatient(ownerId, patientId);
 
-  await auditLogService.record({
-    userId: ownerId,
-    action: "consent.list",
-    resourceType: "consent",
-    patientId,
+    await auditLogService.record({
+      userId: ownerId,
+      action: "consent.list",
+      resourceType: "consent",
+      patientId,
+    });
+
+    return consents;
   });
 
   return consents.map(toConsentResponse);
@@ -111,30 +122,38 @@ export const revokeConsent = async (
   consentId: string,
   reason: string | undefined,
 ) => {
-  await findPatientOrThrow(ownerId, patientId);
+  const consent = await withOwnerScope(ownerId, async () => {
+    await findPatientOrThrow(ownerId, patientId);
 
-  const consent = await consentRepository.findByIdForPatient(
-    consentId,
-    ownerId,
-    patientId,
-  );
+    const current = await consentRepository.findByIdForPatient(
+      consentId,
+      ownerId,
+      patientId,
+    );
 
-  if (!consent) {
-    throw new NotFoundException(messages.CONSENT_NOT_FOUND);
-  }
+    if (!current) {
+      throw new NotFoundException(messages.CONSENT_NOT_FOUND);
+    }
 
-  if (consent.status === "revoked") {
-    throw new ConflictException(messages.CONSENT_ALREADY_REVOKED);
-  }
+    if (current.status === "revoked") {
+      throw new ConflictException(messages.CONSENT_ALREADY_REVOKED);
+    }
 
-  await consentRepository.revoke(consent, reason || null);
+    const consent = await consentRepository.revoke(
+      consentId,
+      ownerId,
+      reason || null,
+    );
 
-  await auditLogService.record({
-    userId: ownerId,
-    action: "consent.revoke",
-    resourceType: "consent",
-    resourceId: consent.id,
-    patientId,
+    await auditLogService.record({
+      userId: ownerId,
+      action: "consent.revoke",
+      resourceType: "consent",
+      resourceId: consent.id,
+      patientId,
+    });
+
+    return consent;
   });
   AppLogger.info("Consent revoked", { consentId: consent.id, patientId });
 
@@ -146,7 +165,9 @@ export const hasActiveConsent = async (
   patientId: string,
   type: ConsentType,
 ) => {
-  return (
-    (await consentRepository.findActive(ownerId, patientId, type)) !== null
+  return await withOwnerScope(
+    ownerId,
+    async () =>
+      (await consentRepository.findActive(ownerId, patientId, type)) !== null,
   );
 };

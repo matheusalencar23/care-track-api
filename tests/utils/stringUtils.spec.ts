@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  escapeRegex,
+  escapeLike,
   normalizeForSearch,
 } from "../../src/utils/string.utils.js";
 
@@ -13,11 +13,12 @@ describe("normalizeForSearch", () => {
   });
 });
 
-describe("escapeRegex", () => {
-  it("should escape regex special characters", () => {
-    const pattern = new RegExp(escapeRegex("a.b*(c)"));
+describe("escapeLike", () => {
+  it("should escape the LIKE wildcards and the escape character", () => {
+    expect(escapeLike("50%_a\\b")).toBe("50\\%\\_a\\\\b");
+  });
 
-    expect(pattern.test("a.b*(c)")).toBe(true);
-    expect(pattern.test("axbbc")).toBe(false);
+  it("should keep regex characters as they are", () => {
+    expect(escapeLike(".*")).toBe(".*");
   });
 });

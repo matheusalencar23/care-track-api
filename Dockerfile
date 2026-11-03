@@ -7,8 +7,6 @@ WORKDIR /app
 
 COPY package*.json ./
 
-ENV MONGOMS_DISABLE_POSTINSTALL=1
-
 RUN npm ci
 
 COPY tsconfig*.json ./
@@ -30,6 +28,8 @@ RUN npm ci --omit=dev --ignore-scripts
 COPY --from=builder /app/dist ./dist
 
 COPY templates ./templates
+
+COPY migrations ./migrations
 
 EXPOSE 3001
 

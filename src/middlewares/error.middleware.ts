@@ -3,8 +3,9 @@ import {
   ConflictException,
   HttpException,
 } from "../shared/exceptions/index.js";
-import { isDuplicateKeyError } from "../utils/mongo.utils.js";
+import { isDuplicateKeyError } from "../utils/db.utils.js";
 import { AppLogger } from "../shared/appLogger.js";
+import { errorDetails } from "../shared/errorDetails.js";
 import { messages } from "../shared/messages.js";
 
 export const errorMiddleware = (
@@ -32,10 +33,7 @@ export const errorMiddleware = (
   const statusCode = 500;
   const message = messages.INTERNAL_SERVER_ERROR;
 
-  AppLogger.error(`${statusCode} - ${message}`);
-  if (err instanceof Error && err.stack) {
-    AppLogger.error(err.stack);
-  }
+  AppLogger.error(`${statusCode} - ${message}`, errorDetails(err));
 
   return res.status(statusCode).json({
     message,

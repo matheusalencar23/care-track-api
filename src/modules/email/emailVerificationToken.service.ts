@@ -1,5 +1,5 @@
 import * as emailVerificationTokenRepository from "./emailVerificationToken.repository.js";
-import type { IEmailVerificationToken } from "./emailVerificationToken.model.js";
+import type { EmailVerificationToken } from "./emailVerificationToken.model.js";
 import { UnprocessableEntityException } from "../../shared/exceptions/index.js";
 import { generateRandomToken, hashToken } from "../../utils/crypt.utils.js";
 import { messages } from "../../shared/messages.js";
@@ -44,12 +44,10 @@ export const findValidToken = async (token: string) => {
 };
 
 export const markTokenAsUsed = async (
-  emailVerificationToken: IEmailVerificationToken,
+  emailVerificationToken: EmailVerificationToken,
 ) => {
-  emailVerificationToken.usedAt = new Date();
-  await emailVerificationToken.save();
-};
-
-export const deleteVerificationTokenByUserId = async (userId: string) => {
-  await emailVerificationTokenRepository.deleteByUserId(userId);
+  await emailVerificationTokenRepository.markAsUsed(
+    emailVerificationToken.id,
+    new Date(),
+  );
 };

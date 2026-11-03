@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../../shared/appLogger.js";
+import { errorDetails } from "../../shared/errorDetails.js";
 import * as userService from "./user.service.js";
 import { UnprocessableEntityException } from "../../shared/exceptions/index.js";
 import { messages } from "../../shared/messages.js";
@@ -28,7 +29,7 @@ export const signup = async (
       corenState,
     });
   } catch (err) {
-    AppLogger.error(`Error creating user: ${err}`);
+    AppLogger.error("Error creating user", errorDetails(err));
     return next(err);
   }
 };
@@ -64,10 +65,7 @@ export const resendValidation = async (req: Request, res: Response) => {
 
     return res.json();
   } catch (err) {
-    AppLogger.error(`Error resending validation`);
-    if (err instanceof Error && err.stack) {
-      AppLogger.error(err.stack);
-    }
+    AppLogger.error("Error resending validation", errorDetails(err));
     return res.json();
   }
 };

@@ -1,5 +1,22 @@
-import mongoose, { Document } from "mongoose";
-import { ownerScopePlugin } from "../../db/ownerScope.plugin.js";
+import { sql } from "drizzle-orm";
+import {
+  check,
+  foreignKey,
+  index,
+  pgEnum,
+  pgTable,
+  text,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
+import {
+  createdAt,
+  id,
+  ownerIsolationPolicy,
+  timestamptz,
+  updatedAt,
+} from "../../db/columns.js";
+import { patients } from "../patient/patient.model.js";
 
 export const CONSENT_TYPES = ["image_capture"] as const;
 
@@ -17,101 +34,48 @@ export const CONSENT_STATUSES = ["active", "revoked"] as const;
 
 export type ConsentStatus = (typeof CONSENT_STATUSES)[number];
 
-export interface IConsent extends Document {
-  ownerId: mongoose.Types.ObjectId;
-  patientId: mongoose.Types.ObjectId;
-  type: ConsentType;
-  method: ConsentMethod;
-  grantor: ConsentGrantor;
-  representativeName: string | null;
-  collectedAt: Date;
-  status: ConsentStatus;
-  revokedAt: Date | null;
-  revocationReason: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
+export const consentTypeEnum = pgEnum("consent_type", CONSENT_TYPES);
+export const consentMethodEnum = pgEnum("consent_method", CONSENT_METHODS);
+export const consentGrantorEnum = pgEnum("consent_grantor", CONSENT_GRANTORS);
+export const consentStatusEnum = pgEnum("consent_status", CONSENT_STATUSES);
 
-const consentSchema = new mongoose.Schema<IConsent>(
+export const consents = pgTable(
+  "consents",
   {
-    ownerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      immutable: true,
-    },
-    patientId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Patient",
-      required: true,
-      immutable: true,
-    },
-    type: {
-      type: String,
-      required: true,
-      enum: CONSENT_TYPES,
-      immutable: true,
-    },
-    method: {
-      type: String,
-      required: true,
-      enum: CONSENT_METHODS,
-      immutable: true,
-    },
-    grantor: {
-      type: String,
-      required: true,
-      enum: CONSENT_GRANTORS,
-      immutable: true,
-    },
-    representativeName: {
-      type: String,
-      default: null,
-      trim: true,
-      immutable: true,
-    },
-    collectedAt: {
-      type: Date,
-      required: true,
-      immutable: true,
-    },
-    status: {
-      type: String,
-      required: true,
-      enum: CONSENT_STATUSES,
-      default: "active",
-    },
-    revokedAt: {
-      type: Date,
-      default: null,
-    },
-    revocationReason: {
-      type: String,
-      default: null,
-      trim: true,
-    },
+    id: id(),
+    ownerId: uuid().notNull(),
+    patientId: uuid().notNull(),
+    type: consentTypeEnum().notNull(),
+    method: consentMethodEnum().notNull(),
+    grantor: consentGrantorEnum().notNull(),
+    representativeName: text(),
+    collectedAt: timestamptz().notNull(),
+    status: consentStatusEnum().notNull().default("active"),
+    revokedAt: timestamptz(),
+    revocationReason: text(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
   },
-  { timestamps: true },
+  (table) => [
+    foreignKey({
+      name: "consents_patient_fk",
+      columns: [table.ownerId, table.patientId],
+      foreignColumns: [patients.ownerId, patients.id],
+    }),
+    uniqueIndex("consents_one_active_per_type")
+      .on(table.ownerId, table.patientId, table.type)
+      .where(sql`${table.status} = 'active'`),
+    index().on(table.ownerId, table.patientId, table.createdAt.desc()),
+    check(
+      "consents_representative_name",
+      sql`(${table.grantor} = 'legal_representative') = (${table.representativeName} is not null)`,
+    ),
+    check(
+      "consents_revocation",
+      sql`(${table.status} = 'revoked') = (${table.revokedAt} is not null)`,
+    ),
+    ownerIsolationPolicy("consents"),
+  ],
 );
 
-consentSchema.plugin(ownerScopePlugin);
-
-consentSchema.index({ ownerId: 1, patientId: 1, createdAt: -1 });
-consentSchema.index(
-  { ownerId: 1, patientId: 1, type: 1 },
-  { unique: true, partialFilterExpression: { status: "active" } },
-);
-
-consentSchema.pre("save", function () {
-  if (this.isNew) {
-    return;
-  }
-
-  if (this.isModified("status") && this.status !== "revoked") {
-    throw new Error("A revoked consent cannot be reactivated");
-  }
-});
-
-const Consent = mongoose.model("Consent", consentSchema);
-
-export default Consent;
+export type Consent = typeof consents.$inferSelect;

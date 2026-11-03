@@ -1,11 +1,11 @@
-import mongoose from "mongoose";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 
 import app from "../../src/app.js";
-import AuditLog from "../../src/modules/audit/auditLog.model.js";
+import { auditLogs } from "../../src/modules/audit/auditLog.model.js";
 import { record } from "../../src/modules/audit/auditLog.service.js";
-import { API, createVerifiedUser, userData } from "./helpers.js";
+import { API, createVerifiedUser, findAuditLogs, userData } from "./helpers.js";
+import { adminQuery, appClient, countRows } from "./database.js";
 
 describe("audit log", () => {
   it("should record signin and signout with the request id", async () => {
@@ -18,16 +18,16 @@ describe("audit log", () => {
       .expect(200);
     await agent.post(`${API}/auth/signout`).expect(204);
 
-    const logs = await AuditLog.find().sort({ createdAt: 1, _id: 1 }).lean();
+    const logs = await findAuditLogs();
 
     expect(logs.map((log) => log.action)).toEqual([
       "auth.signin",
       "auth.signout",
     ]);
     expect(logs[0]).toMatchObject({
-      userId: user._id,
+      userId: user.id,
       resourceType: "user",
-      resourceId: user._id,
+      resourceId: user.id,
       requestId: signin.headers["x-request-id"],
       ip: expect.any(String),
     });
@@ -41,29 +41,51 @@ describe("audit log", () => {
       .send({ email: userData.email, password: "wrong-password" })
       .expect(400);
 
-    expect(await AuditLog.countDocuments()).toBe(0);
+    expect(await countRows(auditLogs)).toBe(0);
   });
 
-  it("should reject updates and deletes", async () => {
-    const userId = new mongoose.Types.ObjectId().toString();
-    await record({ userId, action: "auth.signin", resourceType: "user" });
-    const log = await AuditLog.findOne().orFail();
+  describe("append-only", () => {
+    const createLog = async () => {
+      const user = await createVerifiedUser();
+      await record({
+        userId: user.id,
+        action: "auth.signin",
+        resourceType: "user",
+      });
+      const [log] = await findAuditLogs();
+      return log!;
+    };
 
-    await expect(
-      AuditLog.updateOne({ _id: log._id }, { action: "auth.signout" }),
-    ).rejects.toThrow("append-only");
-    await expect(
-      AuditLog.findOneAndUpdate({ _id: log._id }, { ip: "1.1.1.1" }),
-    ).rejects.toThrow("append-only");
-    await expect(AuditLog.deleteOne({ _id: log._id })).rejects.toThrow(
-      "append-only",
-    );
-    await expect(AuditLog.deleteMany({})).rejects.toThrow("append-only");
+    it.each([
+      ["UPDATE audit_logs SET action = 'auth.signout'"],
+      ["DELETE FROM audit_logs"],
+      ["TRUNCATE audit_logs"],
+    ])("should deny %s to the API user", async (statement) => {
+      await createLog();
+      const client = await appClient();
 
-    log.action = "auth.signout";
-    await expect(log.save()).rejects.toThrow("append-only");
+      try {
+        await expect(client.query(statement)).rejects.toThrow(
+          "permission denied",
+        );
+      } finally {
+        client.release();
+      }
 
-    const stored = await AuditLog.findById(log._id).lean();
-    expect(stored?.action).toBe("auth.signin");
+      expect(await countRows(auditLogs)).toBe(1);
+    });
+
+    it.each([
+      ["UPDATE audit_logs SET action = 'auth.signout'"],
+      ["DELETE FROM audit_logs"],
+      ["TRUNCATE audit_logs"],
+    ])("should reject %s even for the schema owner", async (statement) => {
+      const log = await createLog();
+
+      await expect(adminQuery(statement)).rejects.toThrow("append-only");
+
+      const [stored] = await findAuditLogs();
+      expect(stored).toEqual(log);
+    });
   });
 });

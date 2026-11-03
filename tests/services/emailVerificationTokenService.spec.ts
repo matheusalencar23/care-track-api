@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createEmailVerificationToken,
-  deleteVerificationTokenByUserId,
   isOnResendCooldown,
   RESEND_COOLDOWN_MS,
   findValidToken,
@@ -16,7 +15,7 @@ vi.mock("../../src/modules/email/emailVerificationToken.repository.js", () => ({
   save: vi.fn(),
   findByToken: vi.fn(),
   findLatestByUserId: vi.fn(),
-  deleteByUserId: vi.fn(),
+  markAsUsed: vi.fn(),
 }));
 
 describe("emailVerificationTokenService", () => {
@@ -106,13 +105,13 @@ describe("emailVerificationTokenService", () => {
   });
 
   describe("markTokenAsUsed", () => {
-    it("should set usedAt and save the token", async () => {
-      const record = { usedAt: null as Date | null, save: vi.fn() };
+    it("should mark the token as used now", async () => {
+      await markTokenAsUsed({ id: "token-1", usedAt: null } as never);
 
-      await markTokenAsUsed(record as never);
-
-      expect(record.usedAt).toBeInstanceOf(Date);
-      expect(record.save).toHaveBeenCalledOnce();
+      expect(emailVerificationTokenRepository.markAsUsed).toHaveBeenCalledWith(
+        "token-1",
+        expect.any(Date),
+      );
     });
   });
 
@@ -146,20 +145,6 @@ describe("emailVerificationTokenService", () => {
       } as never);
 
       await expect(isOnResendCooldown("user-123")).resolves.toBe(false);
-    });
-  });
-
-  describe("deleteVerificationTokenByUserId", () => {
-    it("should delegate to the repository", async () => {
-      vi.mocked(
-        emailVerificationTokenRepository.deleteByUserId,
-      ).mockResolvedValue({} as never);
-
-      await deleteVerificationTokenByUserId("user-123");
-
-      expect(
-        emailVerificationTokenRepository.deleteByUserId,
-      ).toHaveBeenCalledWith("user-123");
     });
   });
 });

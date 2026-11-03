@@ -15,6 +15,7 @@ import {
   NotFoundException,
 } from "../../src/shared/exceptions/index.js";
 import { messages } from "../../src/shared/messages.js";
+import { withOwnerScope } from "../../src/db/db.js";
 
 vi.mock("../../src/modules/patient/patient.repository.js", () => ({
   save: vi.fn(),
@@ -28,6 +29,11 @@ vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
   record: vi.fn(),
   recordMany: vi.fn(),
 }));
+
+vi.mock(
+  "../../src/db/db.js",
+  async () => (await import("../helpers/dbMock.js")).dbModuleMock,
+);
 
 vi.mock("../../src/shared/appLogger.js", () => ({
   AppLogger: {
@@ -44,7 +50,7 @@ const buildPatient = (archivedAt: Date | null = null) =>
   ({
     id: "patient-1",
     name: "José da Silva",
-    birthDate: new Date("1950-03-15T00:00:00.000Z"),
+    birthDate: "1950-03-15",
     cpf: "52998224725",
     cns: null,
     phone: null,
@@ -85,6 +91,10 @@ describe("patientService", () => {
       expect(patientRepository.save).toHaveBeenCalledWith(
         "nurse-1",
         patientData,
+      );
+      expect(withOwnerScope).toHaveBeenCalledWith(
+        "nurse-1",
+        expect.any(Function),
       );
       expect(auditLogService.record).toHaveBeenCalledWith({
         userId: "nurse-1",
@@ -200,6 +210,7 @@ describe("patientService", () => {
   describe("updatePatient", () => {
     it("should update the owner's patient and record the audit", async () => {
       vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(patient);
+      vi.mocked(patientRepository.update).mockResolvedValue(patient);
 
       await expect(
         updatePatient("nurse-1", "patient-1", patientData),
@@ -210,7 +221,8 @@ describe("patientService", () => {
         "nurse-1",
       );
       expect(patientRepository.update).toHaveBeenCalledWith(
-        patient,
+        "patient-1",
+        "nurse-1",
         patientData,
       );
       expect(auditLogService.record).toHaveBeenCalledWith({
@@ -247,13 +259,21 @@ describe("patientService", () => {
 
   describe("archivePatient", () => {
     it("should archive the owner's patient and record the audit", async () => {
-      const active = buildPatient();
-      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(active);
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
+        buildPatient(),
+      );
+      vi.mocked(patientRepository.setArchivedAt).mockResolvedValue(
+        buildPatient(createdAt),
+      );
 
-      await archivePatient("nurse-1", "patient-1");
+      await expect(archivePatient("nurse-1", "patient-1")).resolves.toEqual({
+        ...patientResponse,
+        archivedAt: createdAt,
+      });
 
       expect(patientRepository.setArchivedAt).toHaveBeenCalledWith(
-        active,
+        "patient-1",
+        "nurse-1",
         expect.any(Date),
       );
       expect(auditLogService.record).toHaveBeenCalledWith({
@@ -289,13 +309,20 @@ describe("patientService", () => {
 
   describe("unarchivePatient", () => {
     it("should unarchive the owner's patient and record the audit", async () => {
-      const archived = buildPatient(createdAt);
-      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(archived);
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
+        buildPatient(createdAt),
+      );
+      vi.mocked(patientRepository.setArchivedAt).mockResolvedValue(
+        buildPatient(),
+      );
 
-      await unarchivePatient("nurse-1", "patient-1");
+      await expect(unarchivePatient("nurse-1", "patient-1")).resolves.toEqual(
+        patientResponse,
+      );
 
       expect(patientRepository.setArchivedAt).toHaveBeenCalledWith(
-        archived,
+        "patient-1",
+        "nurse-1",
         null,
       );
       expect(auditLogService.record).toHaveBeenCalledWith({

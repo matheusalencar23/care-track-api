@@ -5,7 +5,7 @@ import {
   RevokeConsentSchema,
 } from "../../src/modules/consent/consent.schema.js";
 
-const params = { id: "64b7f0c2a1b2c3d4e5f60718" };
+const params = { id: "0195f3a2-7c4e-7b1a-9d2e-3f4a5b6c7d8e" };
 
 const consentBody = {
   type: "image_capture",
@@ -100,7 +100,10 @@ describe("GrantConsentSchema", () => {
 });
 
 describe("RevokeConsentSchema", () => {
-  const revokeParams = { ...params, consentId: "64b7f0c2a1b2c3d4e5f60719" };
+  const revokeParams = {
+    ...params,
+    consentId: "0195f3a2-7c4e-7b1a-9d2e-3f4a5b6c7d8f",
+  };
 
   it("should accept a revocation without body", () => {
     expect(

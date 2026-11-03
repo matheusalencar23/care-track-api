@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../../shared/appLogger.js";
-import User from "../user/user.model.js";
+import { errorDetails } from "../../shared/errorDetails.js";
+import * as userRepository from "../user/user.repository.js";
 import { verifyToken } from "../../utils/token.utils.js";
 import {
   UnauthorizedException,
@@ -39,9 +40,11 @@ export const authenticationMiddleware = async (
 
     const verifiedToken = verifyToken(token);
 
-    const user = await User.findOne({
-      _id: verifiedToken._id,
-    });
+    if (typeof verifiedToken.sub !== "string") {
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
+    }
+
+    const user = await userRepository.findById(verifiedToken.sub);
 
     if (!user) {
       return next(new UnauthorizedException(messages.UNAUTHORIZED));
@@ -66,7 +69,7 @@ export const authenticationMiddleware = async (
       return next(err);
     }
 
-    AppLogger.error(`Authentication error: ${err}`);
+    AppLogger.error("Authentication error", errorDetails(err));
     return next(new HttpException(messages.INTERNAL_SERVER_ERROR, 500, null));
   }
 };

@@ -1,8 +1,9 @@
+import { eq } from "drizzle-orm";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 
 import app from "../../src/app.js";
-import User from "../../src/modules/user/user.model.js";
+import { users } from "../../src/modules/user/user.model.js";
 import { sendConfirmationEmail } from "../../src/services/email/email.service.js";
 import { messages } from "../../src/shared/messages.js";
 import {
@@ -11,6 +12,7 @@ import {
   userData,
   waitForConfirmationToken,
 } from "./helpers.js";
+import { countRows, testDb } from "./database.js";
 
 describe("authentication flow", () => {
   it("should sign up, confirm the email, sign in, read the session and sign out", async () => {
@@ -25,8 +27,11 @@ describe("authentication flow", () => {
       corenState: userData.corenState,
     });
 
-    const stored = await User.findOne({ email: userData.email });
-    expect(stored?.password).not.toBe(userData.password);
+    const [stored] = await testDb()
+      .select()
+      .from(users)
+      .where(eq(users.email, userData.email));
+    expect(stored?.passwordHash).not.toBe(userData.password);
     expect(stored?.emailVerifiedAt).toBeNull();
 
     const token = await waitForConfirmationToken();
@@ -98,7 +103,7 @@ describe("authentication flow", () => {
     expect(response.body.message).toBe(
       messages.INVALID_REGISTRATION_CREDENTIALS,
     );
-    expect(await User.countDocuments()).toBe(1);
+    expect(await countRows(users)).toBe(1);
   });
 
   it("should reject an invalid signup payload", async () => {
@@ -117,7 +122,7 @@ describe("authentication flow", () => {
         "UF do COREN inválida",
       ]),
     );
-    expect(await User.countDocuments()).toBe(0);
+    expect(await countRows(users)).toBe(0);
   });
 
   it("should reject a wrong password", async () => {

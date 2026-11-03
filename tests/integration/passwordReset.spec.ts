@@ -1,16 +1,18 @@
+import { eq } from "drizzle-orm";
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 
 import app from "../../src/app.js";
-import PasswordResetToken from "../../src/modules/auth/passwordResetToken.model.js";
-import User from "../../src/modules/user/user.model.js";
+import { passwordResetTokens } from "../../src/modules/auth/passwordResetToken.model.js";
 import { sendPasswordResetEmail } from "../../src/services/email/email.service.js";
 import {
   API,
+  createUnverifiedUser,
   createVerifiedUser,
   userData,
   waitForPasswordResetToken,
 } from "./helpers.js";
+import { countRows, testDb } from "./database.js";
 
 const newPassword = "new-password-456";
 
@@ -66,10 +68,10 @@ describe("password reset", () => {
       .send({ email: userData.email });
     const firstToken = await waitForPasswordResetToken();
 
-    await PasswordResetToken.collection.updateMany(
-      { userId: user._id },
-      { $set: { createdAt: new Date(Date.now() - 5 * 60 * 1000) } },
-    );
+    await testDb()
+      .update(passwordResetTokens)
+      .set({ createdAt: new Date(Date.now() - 5 * 60 * 1000) })
+      .where(eq(passwordResetTokens.userId, user.id));
     vi.mocked(sendPasswordResetEmail).mockClear();
 
     await request(app)
@@ -103,7 +105,7 @@ describe("password reset", () => {
       .expect(200);
 
     expect(sendPasswordResetEmail).toHaveBeenCalledOnce();
-    expect(await PasswordResetToken.countDocuments()).toBe(1);
+    expect(await countRows(passwordResetTokens)).toBe(1);
   });
 
   it("should answer 200 without sending an email for an unknown address", async () => {
@@ -128,7 +130,7 @@ describe("password reset", () => {
   });
 
   it("should confirm the email of an unverified account", async () => {
-    await User.create(userData);
+    await createUnverifiedUser();
 
     await request(app)
       .post(`${API}/auth/forgot-password`)

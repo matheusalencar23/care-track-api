@@ -32,7 +32,7 @@ const patientBodySchema = z.object({
 export type PatientData = z.infer<typeof patientBodySchema>;
 
 const patientParamsSchema = z.object({
-  id: z.string().regex(/^[0-9a-f]{24}$/i, "ID de paciente inválido"),
+  id: z.uuid("ID de paciente inválido"),
 });
 
 export const ListPatientsQuerySchema = z.object({

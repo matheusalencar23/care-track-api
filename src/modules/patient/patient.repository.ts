@@ -1,77 +1,117 @@
-import type { HydratedDocument, QueryFilter } from "mongoose";
-import Patient, { type IPatient } from "./patient.model.js";
+import {
+  and,
+  asc,
+  count,
+  eq,
+  isNotNull,
+  isNull,
+  like,
+  or,
+  type SQL,
+} from "drizzle-orm";
+import { getDb, single } from "../../db/db.js";
+import { patients } from "./patient.model.js";
 import type { ListPatientsQuery, PatientData } from "./patient.schema.js";
-import { escapeRegex, normalizeForSearch } from "../../utils/string.utils.js";
+import { escapeLike, normalizeForSearch } from "../../utils/string.utils.js";
 
 const toFields = (data: PatientData) => ({
   name: data.name,
+  searchName: normalizeForSearch(data.name),
   birthDate: data.birthDate,
   cpf: data.cpf ?? null,
   cns: data.cns ?? null,
   phone: data.phone ?? null,
 });
 
+const byIdForOwner = (id: string, ownerId: string) =>
+  and(eq(patients.id, id), eq(patients.ownerId, ownerId));
+
 export const save = async (ownerId: string, data: PatientData) => {
-  const patient = new Patient({ ownerId, ...toFields(data) });
-
-  await patient.save();
-
-  return patient;
+  return single(
+    await getDb()
+      .insert(patients)
+      .values({ ownerId, ...toFields(data) })
+      .returning(),
+  );
 };
 
 export const findByIdForOwner = async (id: string, ownerId: string) => {
-  return await Patient.findOne({ _id: id, ownerId });
+  const [patient] = await getDb()
+    .select()
+    .from(patients)
+    .where(byIdForOwner(id, ownerId))
+    .limit(1);
+
+  return patient ?? null;
 };
 
 export const listForOwner = async (
   ownerId: string,
   { search, status, page, limit }: ListPatientsQuery,
 ) => {
-  const filter: QueryFilter<IPatient> = {
-    ownerId,
-    archivedAt: status === "archived" ? { $ne: null } : null,
-  };
+  const conditions: (SQL | undefined)[] = [
+    eq(patients.ownerId, ownerId),
+    status === "archived"
+      ? isNotNull(patients.archivedAt)
+      : isNull(patients.archivedAt),
+  ];
 
   if (search) {
-    const conditions: QueryFilter<IPatient>[] = [
-      { searchName: new RegExp(escapeRegex(normalizeForSearch(search))) },
-    ];
-
+    const pattern = `%${escapeLike(normalizeForSearch(search))}%`;
     const digits = search.replace(/[\s.\-/]/g, "");
-    if (/^\d+$/.test(digits)) {
-      conditions.push({ cpf: digits }, { cns: digits });
-    }
+    const isDocument = /^\d+$/.test(digits);
 
-    filter.$or = conditions;
+    conditions.push(
+      isDocument
+        ? or(
+            like(patients.searchName, pattern),
+            eq(patients.cpf, digits),
+            eq(patients.cns, digits),
+          )
+        : like(patients.searchName, pattern),
+    );
   }
 
-  const [patients, total] = await Promise.all([
-    Patient.find(filter)
-      .sort({ searchName: 1, _id: 1 })
-      .skip((page - 1) * limit)
-      .limit(limit),
-    Patient.countDocuments(filter),
+  const where = and(...conditions);
+
+  const [items, [totalRow]] = await Promise.all([
+    getDb()
+      .select()
+      .from(patients)
+      .where(where)
+      .orderBy(asc(patients.searchName), asc(patients.id))
+      .limit(limit)
+      .offset((page - 1) * limit),
+    getDb().select({ total: count() }).from(patients).where(where),
   ]);
 
-  return { patients, total };
+  return { patients: items, total: totalRow?.total ?? 0 };
 };
 
 export const update = async (
-  patient: HydratedDocument<IPatient>,
+  id: string,
+  ownerId: string,
   data: PatientData,
 ) => {
-  patient.set(toFields(data));
-  await patient.save();
-
-  return patient;
+  return single(
+    await getDb()
+      .update(patients)
+      .set(toFields(data))
+      .where(byIdForOwner(id, ownerId))
+      .returning(),
+  );
 };
 
 export const setArchivedAt = async (
-  patient: HydratedDocument<IPatient>,
+  id: string,
+  ownerId: string,
   archivedAt: Date | null,
 ) => {
-  patient.archivedAt = archivedAt;
-  await patient.save();
-
-  return patient;
+  return single(
+    await getDb()
+      .update(patients)
+      .set({ archivedAt })
+      .where(byIdForOwner(id, ownerId))
+      .returning(),
+  );
 };

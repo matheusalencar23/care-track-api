@@ -6,10 +6,13 @@ import {
   UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
 import { generateToken } from "../../utils/token.utils.js";
+import { comparePassword } from "../../utils/crypt.utils.js";
+import { withTransaction } from "../../db/db.js";
 import { messages } from "../../shared/messages.js";
 import { sendPasswordResetEmail } from "../../services/email/email.service.js";
 import { PASSWORD_RESET_HOST } from "../../config/secrets.js";
 import { AppLogger } from "../../shared/appLogger.js";
+import { errorDetails } from "../../shared/errorDetails.js";
 
 export const login = async (email: string, password: string) => {
   const user = await userRepository.findByEmail(email);
@@ -18,7 +21,7 @@ export const login = async (email: string, password: string) => {
     throw new BadRequestException(messages.INVALID_CREDENTIALS);
   }
 
-  const isPasswordMatched = await user.authenticate(password);
+  const isPasswordMatched = await comparePassword(password, user.passwordHash);
 
   if (!isPasswordMatched) {
     throw new BadRequestException(messages.INVALID_CREDENTIALS);
@@ -31,7 +34,7 @@ export const login = async (email: string, password: string) => {
     resourceId: user.id,
   });
 
-  const token = generateToken({ _id: user._id });
+  const token = generateToken({ sub: user.id });
   return token;
 };
 
@@ -54,26 +57,26 @@ export const requestPasswordReset = async (email: string) => {
 export const resetPassword = async (token: string, password: string) => {
   const passwordResetToken =
     await passwordResetTokenService.findValidToken(token);
-  const user = await userRepository.findById(
-    passwordResetToken.userId.toString(),
-  );
+  const user = await userRepository.findById(passwordResetToken.userId);
 
   if (!user) {
     throw new UnprocessableEntityException(messages.INVALID_LINK_TOKEN, []);
   }
 
   const now = new Date();
-  user.password = password;
-  user.passwordChangedAt = now;
-  user.emailVerifiedAt ??= now;
-  await user.save();
 
-  await passwordResetTokenService.invalidateUserTokens(user.id);
-  await auditLogService.record({
-    userId: user.id,
-    action: "auth.password_reset",
-    resourceType: "user",
-    resourceId: user.id,
+  await withTransaction(async () => {
+    await userRepository.updatePassword(user.id, password, {
+      passwordChangedAt: now,
+      emailVerifiedAt: user.emailVerifiedAt ?? now,
+    });
+    await passwordResetTokenService.invalidateUserTokens(user.id);
+    await auditLogService.record({
+      userId: user.id,
+      action: "auth.password_reset",
+      resourceType: "user",
+      resourceId: user.id,
+    });
   });
   AppLogger.info("Password reset", { userId: user.id });
 };
@@ -93,10 +96,10 @@ const createPasswordResetEmail = async (
       `${PASSWORD_RESET_HOST}?token=${passwordResetToken}`,
     );
   } catch (err) {
-    AppLogger.error("Error sending password reset email", { userId });
-    if (err instanceof Error && err.stack) {
-      AppLogger.error(err.stack);
-    }
+    AppLogger.error("Error sending password reset email", {
+      userId,
+      ...errorDetails(err),
+    });
 
     throw err;
   }

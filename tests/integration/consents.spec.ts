@@ -1,12 +1,14 @@
-import mongoose from "mongoose";
+import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 
 import app from "../../src/app.js";
-import AuditLog from "../../src/modules/audit/auditLog.model.js";
-import Consent from "../../src/modules/consent/consent.model.js";
+import { auditLogs } from "../../src/modules/audit/auditLog.model.js";
+import { consents } from "../../src/modules/consent/consent.model.js";
 import { messages } from "../../src/shared/messages.js";
-import { API, createVerifiedUser, userData } from "./helpers.js";
+import { API, createVerifiedUser, findAuditLogs, userData } from "./helpers.js";
+import { adminQuery, testDb } from "./database.js";
 
 type Agent = ReturnType<typeof request.agent>;
 
@@ -78,7 +80,7 @@ describe("consents", () => {
   });
 
   it("should require authentication", async () => {
-    const id = new mongoose.Types.ObjectId().toString();
+    const id = randomUUID();
 
     await request(app).get(consentsUrl(id)).expect(401);
     await request(app).post(consentsUrl(id)).send(imageConsent).expect(401);
@@ -86,7 +88,7 @@ describe("consents", () => {
 
   it("should return 404 for a patient that does not exist", async () => {
     const { agent } = await signedInAgent();
-    const id = new mongoose.Types.ObjectId().toString();
+    const id = randomUUID();
 
     const response = await agent
       .post(consentsUrl(id))
@@ -177,33 +179,36 @@ describe("consents", () => {
       expect(response.body.message).toBe(messages.CONSENT_ALREADY_REVOKED);
     });
 
-    it("should never reactivate or change a stored consent", async () => {
-      const { user, agent } = await signedInAgent();
+    it("should never reactivate or change a stored consent, even outside the API", async () => {
+      const { agent } = await signedInAgent();
       const patientId = await createPatient(agent);
-      const granted = await agent
+      const active = await agent
         .post(consentsUrl(patientId))
         .send(imageConsent)
         .expect(201);
+
+      await expect(
+        adminQuery("UPDATE consents SET method = 'verbal' WHERE id = $1", [
+          active.body.id,
+        ]),
+      ).rejects.toThrow("cannot change");
+
       await agent
-        .post(`${consentsUrl(patientId)}/${granted.body.id}/revoke`)
+        .post(`${consentsUrl(patientId)}/${active.body.id}/revoke`)
         .expect(200);
 
-      const consent = await Consent.findOne({
-        _id: granted.body.id,
-        ownerId: user._id,
-      }).orFail();
+      await expect(
+        adminQuery(
+          "UPDATE consents SET status = 'active', revoked_at = NULL WHERE id = $1",
+          [active.body.id],
+        ),
+      ).rejects.toThrow("cannot be changed or reactivated");
 
-      consent.method = "verbal";
-      consent.status = "active";
-      await expect(consent.save()).rejects.toThrow("cannot be reactivated");
-
-      consent.status = "revoked";
-      await consent.save();
-      const stored = await Consent.findOne({
-        _id: granted.body.id,
-        ownerId: user._id,
-      }).orFail();
-      expect(stored.method).toBe("written");
+      const [stored] = await testDb()
+        .select()
+        .from(consents)
+        .where(eq(consents.id, active.body.id));
+      expect(stored).toMatchObject({ method: "written", status: "revoked" });
     });
   });
 
@@ -339,30 +344,27 @@ describe("consents", () => {
         .post(`${consentsUrl(patientId)}/${granted.body.id}/revoke`)
         .expect(200);
 
-      const logs = await AuditLog.find({ resourceType: "consent" })
-        .sort({ createdAt: 1, _id: 1 })
-        .lean();
+      const logs = await findAuditLogs(eq(auditLogs.resourceType, "consent"));
 
-      const consentId = new mongoose.Types.ObjectId(granted.body.id as string);
-      const patientObjectId = new mongoose.Types.ObjectId(patientId);
+      const consentId = granted.body.id as string;
       expect(logs).toMatchObject([
         {
           action: "consent.grant",
-          userId: user._id,
+          userId: user.id,
           resourceId: consentId,
-          patientId: patientObjectId,
+          patientId,
         },
         {
           action: "consent.list",
-          userId: user._id,
+          userId: user.id,
           resourceId: null,
-          patientId: patientObjectId,
+          patientId,
         },
         {
           action: "consent.revoke",
-          userId: user._id,
+          userId: user.id,
           resourceId: consentId,
-          patientId: patientObjectId,
+          patientId,
         },
       ]);
     });

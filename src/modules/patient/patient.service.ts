@@ -1,7 +1,6 @@
-import type { HydratedDocument } from "mongoose";
 import * as patientRepository from "./patient.repository.js";
 import * as auditLogService from "../audit/auditLog.service.js";
-import type { IPatient } from "./patient.model.js";
+import type { Patient } from "./patient.model.js";
 import type { ListPatientsQuery, PatientData } from "./patient.schema.js";
 import {
   ConflictException,
@@ -9,11 +8,12 @@ import {
 } from "../../shared/exceptions/index.js";
 import { messages } from "../../shared/messages.js";
 import { AppLogger } from "../../shared/appLogger.js";
+import { withOwnerScope } from "../../db/db.js";
 
-export const toPatientResponse = (patient: HydratedDocument<IPatient>) => ({
+export const toPatientResponse = (patient: Patient) => ({
   id: patient.id,
   name: patient.name,
-  birthDate: patient.birthDate.toISOString().slice(0, 10),
+  birthDate: patient.birthDate,
   cpf: patient.cpf,
   cns: patient.cns,
   phone: patient.phone,
@@ -33,14 +33,18 @@ const findPatientOrThrow = async (ownerId: string, patientId: string) => {
 };
 
 export const createPatient = async (ownerId: string, data: PatientData) => {
-  const patient = await patientRepository.save(ownerId, data);
+  const patient = await withOwnerScope(ownerId, async () => {
+    const patient = await patientRepository.save(ownerId, data);
 
-  await auditLogService.record({
-    userId: ownerId,
-    action: "patient.create",
-    resourceType: "patient",
-    resourceId: patient.id,
-    patientId: patient.id,
+    await auditLogService.record({
+      userId: ownerId,
+      action: "patient.create",
+      resourceType: "patient",
+      resourceId: patient.id,
+      patientId: patient.id,
+    });
+
+    return patient;
   });
   AppLogger.info("Patient created", { patientId: patient.id });
 
@@ -51,28 +55,29 @@ export const listPatients = async (
   ownerId: string,
   query: ListPatientsQuery,
 ) => {
-  const { patients, total } = await patientRepository.listForOwner(
-    ownerId,
-    query,
-  );
+  const { patients, total } = await withOwnerScope(ownerId, async () => {
+    const result = await patientRepository.listForOwner(ownerId, query);
 
-  if (patients.length === 0) {
-    await auditLogService.record({
-      userId: ownerId,
-      action: "patient.list",
-      resourceType: "patient",
-    });
-  } else {
-    await auditLogService.recordMany(
-      patients.map((patient) => ({
+    if (result.patients.length === 0) {
+      await auditLogService.record({
         userId: ownerId,
-        action: "patient.list" as const,
-        resourceType: "patient" as const,
-        resourceId: patient.id,
-        patientId: patient.id,
-      })),
-    );
-  }
+        action: "patient.list",
+        resourceType: "patient",
+      });
+    } else {
+      await auditLogService.recordMany(
+        result.patients.map((patient) => ({
+          userId: ownerId,
+          action: "patient.list" as const,
+          resourceType: "patient" as const,
+          resourceId: patient.id,
+          patientId: patient.id,
+        })),
+      );
+    }
+
+    return result;
+  });
 
   return {
     items: patients.map(toPatientResponse),
@@ -84,14 +89,18 @@ export const listPatients = async (
 };
 
 export const getPatient = async (ownerId: string, patientId: string) => {
-  const patient = await findPatientOrThrow(ownerId, patientId);
+  const patient = await withOwnerScope(ownerId, async () => {
+    const patient = await findPatientOrThrow(ownerId, patientId);
 
-  await auditLogService.record({
-    userId: ownerId,
-    action: "patient.read",
-    resourceType: "patient",
-    resourceId: patient.id,
-    patientId: patient.id,
+    await auditLogService.record({
+      userId: ownerId,
+      action: "patient.read",
+      resourceType: "patient",
+      resourceId: patient.id,
+      patientId: patient.id,
+    });
+
+    return patient;
   });
 
   return toPatientResponse(patient);
@@ -102,20 +111,24 @@ export const updatePatient = async (
   patientId: string,
   data: PatientData,
 ) => {
-  const patient = await findPatientOrThrow(ownerId, patientId);
+  const patient = await withOwnerScope(ownerId, async () => {
+    const current = await findPatientOrThrow(ownerId, patientId);
 
-  if (patient.archivedAt) {
-    throw new ConflictException(messages.PATIENT_ARCHIVED);
-  }
+    if (current.archivedAt) {
+      throw new ConflictException(messages.PATIENT_ARCHIVED);
+    }
 
-  await patientRepository.update(patient, data);
+    const patient = await patientRepository.update(patientId, ownerId, data);
 
-  await auditLogService.record({
-    userId: ownerId,
-    action: "patient.update",
-    resourceType: "patient",
-    resourceId: patient.id,
-    patientId: patient.id,
+    await auditLogService.record({
+      userId: ownerId,
+      action: "patient.update",
+      resourceType: "patient",
+      resourceId: patient.id,
+      patientId: patient.id,
+    });
+
+    return patient;
   });
   AppLogger.info("Patient updated", { patientId: patient.id });
 
@@ -123,20 +136,28 @@ export const updatePatient = async (
 };
 
 export const archivePatient = async (ownerId: string, patientId: string) => {
-  const patient = await findPatientOrThrow(ownerId, patientId);
+  const patient = await withOwnerScope(ownerId, async () => {
+    const current = await findPatientOrThrow(ownerId, patientId);
 
-  if (patient.archivedAt) {
-    throw new ConflictException(messages.PATIENT_ALREADY_ARCHIVED);
-  }
+    if (current.archivedAt) {
+      throw new ConflictException(messages.PATIENT_ALREADY_ARCHIVED);
+    }
 
-  await patientRepository.setArchivedAt(patient, new Date());
+    const patient = await patientRepository.setArchivedAt(
+      patientId,
+      ownerId,
+      new Date(),
+    );
 
-  await auditLogService.record({
-    userId: ownerId,
-    action: "patient.archive",
-    resourceType: "patient",
-    resourceId: patient.id,
-    patientId: patient.id,
+    await auditLogService.record({
+      userId: ownerId,
+      action: "patient.archive",
+      resourceType: "patient",
+      resourceId: patient.id,
+      patientId: patient.id,
+    });
+
+    return patient;
   });
   AppLogger.info("Patient archived", { patientId: patient.id });
 
@@ -144,20 +165,28 @@ export const archivePatient = async (ownerId: string, patientId: string) => {
 };
 
 export const unarchivePatient = async (ownerId: string, patientId: string) => {
-  const patient = await findPatientOrThrow(ownerId, patientId);
+  const patient = await withOwnerScope(ownerId, async () => {
+    const current = await findPatientOrThrow(ownerId, patientId);
 
-  if (!patient.archivedAt) {
-    throw new ConflictException(messages.PATIENT_NOT_ARCHIVED);
-  }
+    if (!current.archivedAt) {
+      throw new ConflictException(messages.PATIENT_NOT_ARCHIVED);
+    }
 
-  await patientRepository.setArchivedAt(patient, null);
+    const patient = await patientRepository.setArchivedAt(
+      patientId,
+      ownerId,
+      null,
+    );
 
-  await auditLogService.record({
-    userId: ownerId,
-    action: "patient.unarchive",
-    resourceType: "patient",
-    resourceId: patient.id,
-    patientId: patient.id,
+    await auditLogService.record({
+      userId: ownerId,
+      action: "patient.unarchive",
+      resourceType: "patient",
+      resourceId: patient.id,
+      patientId: patient.id,
+    });
+
+    return patient;
   });
   AppLogger.info("Patient unarchived", { patientId: patient.id });
 

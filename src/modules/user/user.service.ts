@@ -8,8 +8,10 @@ import {
 import { messages } from "../../shared/messages.js";
 import { sendConfirmationEmail } from "../../services/email/email.service.js";
 import * as emailVerificationTokenService from "../email/emailVerificationToken.service.js";
+import { withTransaction } from "../../db/db.js";
 import { EMAIL_HOST } from "../../config/secrets.js";
 import { AppLogger } from "../../shared/appLogger.js";
+import { errorDetails } from "../../shared/errorDetails.js";
 import type { SignupData } from "./user.schema.js";
 
 export const createUser = async (data: SignupData) => {
@@ -28,9 +30,7 @@ export const createUser = async (data: SignupData) => {
 export const validateUser = async (token: string) => {
   const emailVerificationToken =
     await emailVerificationTokenService.findValidToken(token);
-  const user = await userRepository.findById(
-    emailVerificationToken.userId.toString(),
-  );
+  const user = await userRepository.findById(emailVerificationToken.userId);
 
   if (!user) {
     throw new UnprocessableEntityException(messages.INVALID_LINK_TOKEN, []);
@@ -40,12 +40,12 @@ export const validateUser = async (token: string) => {
     throw new UnprocessableEntityException(messages.EMAIL_ALREADY_VERIFIED, []);
   }
 
-  user.emailVerifiedAt = new Date();
-  await user.save();
-
-  // O token só é consumido depois que a verificação foi gravada: se algo
-  // falhar antes, o mesmo link continua funcionando.
-  await emailVerificationTokenService.markTokenAsUsed(emailVerificationToken);
+  // Na mesma transação: se algo falhar, nem o e-mail fica confirmado nem o
+  // token é consumido, e o mesmo link continua funcionando.
+  await withTransaction(async () => {
+    await userRepository.markEmailVerified(user.id, new Date());
+    await emailVerificationTokenService.markTokenAsUsed(emailVerificationToken);
+  });
 };
 
 export const resendValidation = async (email: string) => {
@@ -81,10 +81,10 @@ const createValidationEmail = async (
       `${EMAIL_HOST}?token=${emailVerificationToken}`,
     );
   } catch (err) {
-    AppLogger.error("Error sending confirmation email", { userId });
-    if (err instanceof Error && err.stack) {
-      AppLogger.error(err.stack);
-    }
+    AppLogger.error("Error sending confirmation email", {
+      userId,
+      ...errorDetails(err),
+    });
 
     throw err;
   }

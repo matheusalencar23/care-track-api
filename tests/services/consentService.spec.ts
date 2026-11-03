@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -16,6 +16,7 @@ import {
   UnprocessableEntityException,
 } from "../../src/shared/exceptions/index.js";
 import { messages } from "../../src/shared/messages.js";
+import { withOwnerScope } from "../../src/db/db.js";
 
 vi.mock("../../src/modules/consent/consent.repository.js", () => ({
   save: vi.fn(),
@@ -33,6 +34,11 @@ vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
   record: vi.fn(),
 }));
 
+vi.mock(
+  "../../src/db/db.js",
+  async () => (await import("../helpers/dbMock.js")).dbModuleMock,
+);
+
 vi.mock("../../src/shared/appLogger.js", () => ({
   AppLogger: {
     debug: vi.fn(),
@@ -45,7 +51,7 @@ vi.mock("../../src/shared/appLogger.js", () => ({
 type Patient = Awaited<ReturnType<typeof patientRepository.findByIdForOwner>>;
 type Consent = Awaited<ReturnType<typeof consentRepository.save>>;
 
-const patientId = new mongoose.Types.ObjectId().toString();
+const patientId = randomUUID();
 const createdAt = new Date("2026-11-03T10:00:00.000Z");
 
 const buildPatient = (
@@ -54,14 +60,14 @@ const buildPatient = (
 ) =>
   ({
     id: patientId,
-    birthDate: new Date(`${birthDate}T00:00:00.000Z`),
+    birthDate,
     archivedAt,
   }) as unknown as Patient;
 
 const buildConsent = (status: "active" | "revoked" = "active") =>
   ({
     id: "consent-1",
-    patientId: new mongoose.Types.ObjectId(patientId),
+    patientId,
     type: "image_capture",
     method: "written",
     grantor: "patient",
@@ -82,6 +88,9 @@ const consentData = {
 describe("consentService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(consentRepository.revoke).mockResolvedValue(
+      buildConsent("revoked"),
+    );
   });
 
   describe("grantConsent", () => {
@@ -108,6 +117,10 @@ describe("consentService", () => {
         patientId,
         consentData,
         expect.any(Date),
+      );
+      expect(withOwnerScope).toHaveBeenCalledWith(
+        "owner-1",
+        expect.any(Function),
       );
       expect(auditLogService.record).toHaveBeenCalledWith({
         userId: "owner-1",
@@ -246,14 +259,20 @@ describe("consentService", () => {
         consent,
       );
 
-      await revokeConsent("owner-1", patientId, "consent-1", "Pedido");
+      await expect(
+        revokeConsent("owner-1", patientId, "consent-1", "Pedido"),
+      ).resolves.toMatchObject({ id: "consent-1", status: "revoked" });
 
       expect(consentRepository.findByIdForPatient).toHaveBeenCalledWith(
         "consent-1",
         "owner-1",
         patientId,
       );
-      expect(consentRepository.revoke).toHaveBeenCalledWith(consent, "Pedido");
+      expect(consentRepository.revoke).toHaveBeenCalledWith(
+        "consent-1",
+        "owner-1",
+        "Pedido",
+      );
       expect(auditLogService.record).toHaveBeenCalledWith({
         userId: "owner-1",
         action: "consent.revoke",
@@ -274,7 +293,11 @@ describe("consentService", () => {
 
       await revokeConsent("owner-1", patientId, "consent-1", "");
 
-      expect(consentRepository.revoke).toHaveBeenCalledWith(consent, null);
+      expect(consentRepository.revoke).toHaveBeenCalledWith(
+        "consent-1",
+        "owner-1",
+        null,
+      );
     });
 
     it("should revoke even when the patient is archived", async () => {

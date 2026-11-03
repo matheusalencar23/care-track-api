@@ -5,11 +5,10 @@ import {
   CONSENT_TYPES,
 } from "./consent.model.js";
 
-const objectIdSchema = (message: string) =>
-  z.string(message).regex(/^[0-9a-f]{24}$/i, message);
+const idSchema = (message: string) => z.uuid(message);
 
 const patientParamsSchema = z.object({
-  id: objectIdSchema("ID de paciente inválido"),
+  id: idSchema("ID de paciente inválido"),
 });
 
 const consentBodySchema = z
@@ -70,7 +69,7 @@ export const ListConsentsSchema = z.object({
 
 export const RevokeConsentSchema = z.object({
   params: patientParamsSchema.extend({
-    consentId: objectIdSchema("ID de consentimento inválido"),
+    consentId: idSchema("ID de consentimento inválido"),
   }),
   body: z
     .object({

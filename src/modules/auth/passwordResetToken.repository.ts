@@ -1,34 +1,49 @@
-import PasswordResetToken from "./passwordResetToken.model.js";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { getDb, single } from "../../db/db.js";
+import { passwordResetTokens } from "./passwordResetToken.model.js";
 
 export const save = async (
   userId: string,
   tokenHash: string,
   expiresAt: Date,
 ) => {
-  const passwordResetToken = new PasswordResetToken({
-    userId,
-    tokenHash,
-    expiresAt,
-  });
-
-  await passwordResetToken.save();
-
-  return passwordResetToken;
+  return single(
+    await getDb()
+      .insert(passwordResetTokens)
+      .values({ userId, tokenHash, expiresAt })
+      .returning(),
+  );
 };
 
-export const findByToken = async (token: string) => {
-  return await PasswordResetToken.findOne({ tokenHash: token });
+export const findByToken = async (tokenHash: string) => {
+  const [token] = await getDb()
+    .select()
+    .from(passwordResetTokens)
+    .where(eq(passwordResetTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  return token ?? null;
 };
 
 export const findLatestByUserId = async (userId: string) => {
-  return await PasswordResetToken.findOne({ userId }).sort({
-    createdAt: -1,
-  });
+  const [token] = await getDb()
+    .select()
+    .from(passwordResetTokens)
+    .where(eq(passwordResetTokens.userId, userId))
+    .orderBy(desc(passwordResetTokens.createdAt), desc(passwordResetTokens.id))
+    .limit(1);
+
+  return token ?? null;
 };
 
 export const markAllAsUsedByUserId = async (userId: string, usedAt: Date) => {
-  return await PasswordResetToken.updateMany(
-    { userId, usedAt: null },
-    { usedAt },
-  );
+  await getDb()
+    .update(passwordResetTokens)
+    .set({ usedAt })
+    .where(
+      and(
+        eq(passwordResetTokens.userId, userId),
+        isNull(passwordResetTokens.usedAt),
+      ),
+    );
 };

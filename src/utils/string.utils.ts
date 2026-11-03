@@ -7,6 +7,6 @@ export const normalizeForSearch = (value: string) => {
     .trim();
 };
 
-export const escapeRegex = (value: string) => {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const escapeLike = (value: string) => {
+  return value.replace(/[\\%_]/g, "\\$&");
 };

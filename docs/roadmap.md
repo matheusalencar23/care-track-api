@@ -13,6 +13,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 | Papéis na LGPD | Dados dos pacientes: a enfermeira é **controladora** e o Care Track é **operador**. Dados das enfermeiras (conta, e-mail, COREN): o Care Track é **controlador**. |
 | Encarregado (DPO) do Care Track | **Matheus Alencar**, responsável pelo projeto. Precisa de um e-mail exclusivo de privacidade, publicado na política de privacidade. |
 | Correção de registros do histórico | **Edição com versões** e **anulação com motivo**; nunca exclusão definitiva pelo app. Detalhes no princípio 2. |
+| Banco de dados | **PostgreSQL 18** (migrado do MongoDB em 03/11/2026, antes do primeiro dado real), com Drizzle ORM. Motivos: transações nativas (escrita + auditoria juntas), isolamento por enfermeira garantido no banco com Row-Level Security, FKs compostas que impedem ligar um registro ao paciente de outra enfermeira, auditoria só de inclusão e ausência de DELETE garantidas por privilégios e triggers. A API conecta com um papel restrito (`care_track_app`); as migrações, com o dono do schema. |
 | Armazenamento de arquivos | A definir na Fase 3. Direção: armazenamento de objetos compatível com S3, bucket privado, preferencialmente em região no Brasil; MinIO no ambiente local. |
 
 ## Leis e regras que orientam o projeto
@@ -34,7 +35,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 
 ## Princípios de arquitetura
 
-1. **Isolamento por enfermeira.** Toda consulta a pacientes, registros e arquivos filtra por `req.user.id`. Cada rota nova tem teste de integração provando que uma enfermeira não acessa dados de outra.
+1. **Isolamento por enfermeira.** Toda consulta a pacientes, registros e arquivos filtra por `req.user.id` e roda no `withOwnerScope`, que ativa as políticas de RLS da tabela. Cada rota nova tem teste de integração provando que uma enfermeira não acessa dados de outra.
 2. **Histórico corrigível, mas rastreável.** Registros têm autor, COREN e horário definido pelo servidor. Para a enfermeira, editar e "excluir" funcionam normalmente; por baixo, nada é apagado:
    - **Edição com versões:** cada edição guarda a versão anterior (conteúdo, autor, data/hora) e marca o registro como "editado"; a linha do tempo mostra a versão atual e as anteriores ficam acessíveis. Dentro de uma **janela curta após a criação** (proposta: 1 hora, configurável — a confirmar) a edição é livre; depois dela, exige motivo.
    - **Anulação com motivo** no lugar da exclusão (ex.: "registrado no paciente errado"): o registro sai da linha do tempo e das exportações, mas continua guardado e sinalizado como anulado, visível só para a enfermeira.
@@ -42,7 +43,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
    - **Registros anulados nunca entram na exportação** do histórico: no caso de paciente errado, o conteúdo é de outra pessoa e exportá-lo seria vazamento.
    - **Sem exclusão definitiva no app.** Se houver obrigação legal de apagar (ordem judicial ou da ANPD), é um procedimento administrativo do operador, registrado na auditoria.
 3. **Auditoria de acesso.** Coleção própria, também só de inclusão, com quem acessou qual paciente, registro ou arquivo, e quando.
-4. **Arquivos fora do MongoDB.** Bucket privado; upload e download direto pelo cliente com URLs assinadas de curta duração; no MongoDB ficam só os metadados (dono, paciente, tipo, tamanho, hash, chave). Chaves sem dados pessoais. EXIF (incluindo GPS) removido de imagens.
+4. **Arquivos fora do banco.** Bucket privado; upload e download direto pelo cliente com URLs assinadas de curta duração; no Postgres ficam só os metadados (dono, paciente, tipo, tamanho, hash, chave). Chaves sem dados pessoais. EXIF (incluindo GPS) removido de imagens.
 5. **Minimização.** Só dados com finalidade clara; CPF e Cartão SUS opcionais.
 6. **Logs sem dados pessoais.** Já é regra no projeto (ver `CLAUDE.md`); vale também para dados de pacientes.
 
@@ -51,11 +52,11 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 ### Fase 0 — Base (antes de qualquer dado de paciente)
 
 - [x] Limitar o `authLimiter` ao `signin`; `me` e `signout` passam ao `generalLimiter` (hoje o `/auth/me` estoura com 10 chamadas em 15 min).
-- [x] Testes de integração: `supertest` + `mongodb-memory-server`, mock só do `email.service`, projetos separados no Vitest (`test:unit` / `test:integration`), começando pelo fluxo completo de autenticação. Lembrar que o Vitest define `NODE_ENV=test`, então os rate limiters ficam ativos.
+- [x] Testes de integração: `supertest` + `mongodb-memory-server`, mock só do `email.service`, projetos separados no Vitest (`test:unit` / `test:integration`), começando pelo fluxo completo de autenticação. Lembrar que o Vitest define `NODE_ENV=test`, então os rate limiters ficam ativos. (Com a migração para o Postgres, o `mongodb-memory-server` deu lugar ao Testcontainers.)
 - [x] Recuperação de senha (token por e-mail, no mesmo modelo do token de verificação).
 - [x] COREN e UF no cadastro da enfermeira.
-- [x] Infraestrutura do log de auditoria. Falta, no deploy, dar ao usuário do banco da API só `insert` e `find` na coleção `auditlogs`.
-- [x] Conferir a região do cluster no Atlas; migrar para o Brasil se necessário.
+- [x] Infraestrutura do log de auditoria. Os privilégios do usuário da API (só SELECT e INSERT na `audit_logs`) agora vêm das migrações.
+- [x] Conferir a região do cluster no Atlas; migrar para o Brasil se necessário. (O Atlas saiu com a migração para o Postgres; a escolha do provedor está na Fase 5.)
 - [x] Ajustar `engines` do `package.json` para `^22.14.0 || >=24.10.0` (exigência do semantic-release) e atualizar o Node local.
 
 ### Fase 1 — Pacientes
@@ -68,7 +69,8 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 
 ### Fase 2 — Histórico em texto
 
-- [ ] Transações no MongoDB: rodar o banco como replica set no `docker-compose.yml` e o `MongoMemoryReplSet` nos testes de integração (o Atlas já é replica set). Usar na escrita + auditoria (hoje uma falha na auditoria depois da escrita deixa a alteração sem registro) e no "mover registro" abaixo.
+- [x] Transações: resolvido com a migração para o PostgreSQL. Cada operação de paciente e consentimento roda num `withOwnerScope`, com a escrita e a auditoria na mesma transação (uma falha na auditoria desfaz a escrita); o "mover registro" abaixo deve usar o mesmo mecanismo.
+- [ ] Tabela de registros com `ownerId` e `authorId`, `ownerIsolationPolicy`, FK composta `(owner_id, patient_id)`, trigger de dono imutável e grants por coluna (seguir `patients`/`consents`).
 - [ ] Criação de registros com autor, COREN e horário do servidor.
 - [ ] Edição com versões (coleção de versões anteriores, marca de "editado") e janela de edição livre configurável; motivo obrigatório fora da janela.
 - [ ] Anulação com motivo (`status` ativo/anulado e dados da anulação); anulados fora da linha do tempo, mas consultáveis pela enfermeira.
@@ -100,6 +102,9 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 ### Fase 5 — Deploy
 
 - [ ] Servidor em região no Brasil, HTTPS e gestão de segredos.
+- [ ] Postgres 18 gerenciado em região no Brasil (ex.: RDS, Cloud SQL, Neon, Supabase), com dois usuários: o dono do schema para as migrações e o `care_track_app` (login habilitado com senha forte) para a API. O usuário da API não pode ser superusuário nem dono das tabelas, porque os dois ignoram o RLS.
+- [ ] Etapa de migração no deploy (`node dist/db/migrate.js` com a `DATABASE_MIGRATION_URL`) antes de subir a nova versão da API.
+- [ ] Limpeza periódica dos tokens de e-mail e de senha expirados (o MongoDB apagava com índice TTL; no Postgres, um job do operador, já que a API não tem DELETE).
 - [ ] Backups com restauração testada.
 - [ ] Monitoramento e alertas.
 - [ ] Etapa de deploy no CD, a partir da imagem publicada no GHCR.

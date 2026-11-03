@@ -1,5 +1,6 @@
-import type { HydratedDocument } from "mongoose";
-import Consent, { type ConsentType, type IConsent } from "./consent.model.js";
+import { and, desc, eq } from "drizzle-orm";
+import { getDb, single } from "../../db/db.js";
+import { consents, type ConsentType } from "./consent.model.js";
 import type { ConsentData } from "./consent.schema.js";
 
 export const save = async (
@@ -8,26 +9,30 @@ export const save = async (
   data: ConsentData,
   collectedAt: Date,
 ) => {
-  const consent = new Consent({
-    ownerId,
-    patientId,
-    type: data.type,
-    method: data.method,
-    grantor: data.grantor,
-    representativeName: data.representativeName ?? null,
-    collectedAt,
-  });
-
-  await consent.save();
-
-  return consent;
+  return single(
+    await getDb()
+      .insert(consents)
+      .values({
+        ownerId,
+        patientId,
+        type: data.type,
+        method: data.method,
+        grantor: data.grantor,
+        representativeName: data.representativeName ?? null,
+        collectedAt,
+      })
+      .returning(),
+  );
 };
 
 export const listForPatient = async (ownerId: string, patientId: string) => {
-  return await Consent.find({ ownerId, patientId }).sort({
-    createdAt: -1,
-    _id: -1,
-  });
+  return await getDb()
+    .select()
+    .from(consents)
+    .where(
+      and(eq(consents.ownerId, ownerId), eq(consents.patientId, patientId)),
+    )
+    .orderBy(desc(consents.createdAt), desc(consents.id));
 };
 
 export const findByIdForPatient = async (
@@ -35,7 +40,19 @@ export const findByIdForPatient = async (
   ownerId: string,
   patientId: string,
 ) => {
-  return await Consent.findOne({ _id: id, ownerId, patientId });
+  const [consent] = await getDb()
+    .select()
+    .from(consents)
+    .where(
+      and(
+        eq(consents.id, id),
+        eq(consents.ownerId, ownerId),
+        eq(consents.patientId, patientId),
+      ),
+    )
+    .limit(1);
+
+  return consent ?? null;
 };
 
 export const findActive = async (
@@ -43,17 +60,36 @@ export const findActive = async (
   patientId: string,
   type: ConsentType,
 ) => {
-  return await Consent.findOne({ ownerId, patientId, type, status: "active" });
+  const [consent] = await getDb()
+    .select()
+    .from(consents)
+    .where(
+      and(
+        eq(consents.ownerId, ownerId),
+        eq(consents.patientId, patientId),
+        eq(consents.type, type),
+        eq(consents.status, "active"),
+      ),
+    )
+    .limit(1);
+
+  return consent ?? null;
 };
 
 export const revoke = async (
-  consent: HydratedDocument<IConsent>,
+  id: string,
+  ownerId: string,
   reason: string | null,
 ) => {
-  consent.status = "revoked";
-  consent.revokedAt = new Date();
-  consent.revocationReason = reason;
-  await consent.save();
-
-  return consent;
+  return single(
+    await getDb()
+      .update(consents)
+      .set({
+        status: "revoked",
+        revokedAt: new Date(),
+        revocationReason: reason,
+      })
+      .where(and(eq(consents.id, id), eq(consents.ownerId, ownerId)))
+      .returning(),
+  );
 };

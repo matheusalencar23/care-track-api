@@ -3,7 +3,8 @@
 ## Requisitos
 
 - Node `^22.14.0 || >=24.10.0` (exigência do semantic-release). O CI e a imagem usam o Node 24 (`.nvmrc`), que traz o npm 11 — a mesma versão major com que o Dependabot gera o `package-lock.json`
-- MongoDB
+- PostgreSQL 18 (usa `uuidv7()`)
+- Docker, para o Postgres local e para os testes de integração
 
 ## Configuração
 
@@ -11,7 +12,8 @@ Copie `.env.example` para `.env` e preencha:
 
 - `PORT` — porta da API (padrão 3001)
 - `JWT_SECRET` — segredo usado para assinar os JWTs
-- `MONGO_DB_URL_CONNECTION` — string de conexão do MongoDB
+- `DATABASE_URL` — conexão da API, com o usuário `care_track_app` (sem DELETE e sujeito às políticas de RLS)
+- `DATABASE_MIGRATION_URL` — conexão do dono do schema, usada só pelo `npm run db:migrate`
 - `CORS_ORIGIN` — origem permitida pelo CORS
 - `EMAIL_HOST` — URL base usada no link de confirmação de e-mail
 - `PASSWORD_RESET_HOST` — URL base usada no link de redefinição de senha
@@ -22,13 +24,30 @@ Copie `.env.example` para `.env` e preencha:
 
 ## Rodando localmente
 
-Para usar um MongoDB local via Docker, suba o serviço do `docker-compose.yml` e aponte o `.env` para ele (`MONGO_DB_URL_CONNECTION=mongodb://localhost:27017/care-track`):
+Suba o Postgres do `docker-compose.yml` e aponte o `.env` para ele:
+
+```
+DATABASE_URL=postgres://care_track_app:care_track_app@localhost:5432/care_track
+DATABASE_MIGRATION_URL=postgres://care_track:care_track@localhost:5432/care_track
+```
+
 
 ```bash
-docker compose up -d   # sobe só o MongoDB, com os dados em um volume
+docker compose up -d   # sobe só o Postgres, com os dados em um volume
 npm install
+npm run db:migrate     # cria as tabelas, as políticas e os privilégios
 npm run dev
 ```
+
+O compose cria dois usuários: `care_track` (dono do schema, só para as migrações) e `care_track_app` (o da API). Em outros ambientes, a primeira migração cria o papel `care_track_app` sem login; habilite-o com uma senha forte antes de subir a API:
+
+```sql
+ALTER ROLE care_track_app WITH LOGIN PASSWORD '...';
+```
+
+O usuário da API nunca deve ser o dono das tabelas nem superusuário: os dois ignoram as políticas de RLS.
+
+Para mudar o schema, altere os `*.model.ts` e rode `npm run db:generate`, que gera a migração SQL em `migrations/`. Privilégios, triggers e funções vão em migrações SQL escritas à mão (`npx drizzle-kit generate --custom --name=...`).
 
 Para rodar a API também em container, a partir do `Dockerfile` (mesma imagem de produção):
 
@@ -36,7 +55,7 @@ Para rodar a API também em container, a partir do `Dockerfile` (mesma imagem de
 docker compose --profile app up -d --build
 ```
 
-Nesse modo, a API usa o Mongo do compose e roda com `NODE_ENV=production`, o que mantém os rate limits ativos. `docker compose down` para tudo; `docker compose down -v` também apaga os dados.
+Nesse modo, o serviço `migrate` aplica as migrações (`node dist/db/migrate.js`) antes de a API subir; a API usa o Postgres do compose e roda com `NODE_ENV=production`, o que mantém os rate limits ativos. `docker compose down` para tudo; `docker compose down -v` também apaga os dados.
 
 ## Testes
 
@@ -50,7 +69,7 @@ npm run check            # lint + test + build
 Os testes leem as variáveis do arquivo `.env.test`, versionado com valores fictícios e usado também no CI. Ele precisa ter as mesmas chaves obrigatórias do `.env.example`.
 
 - **Unitários** (`tests/`, exceto `tests/integration/`): repositórios e serviços mockados com `vi.mock`, sem banco.
-- **Integração** (`tests/integration/`): sobem o `app` com `supertest` contra um MongoDB em memória (`mongodb-memory-server`, que baixa o binário do `mongod` no `npm install`). Cada arquivo usa um banco próprio, limpo depois de cada teste. O único mock é o `email.service` — os testes leem o link enviado a partir das chamadas do mock. O Vitest roda com `NODE_ENV=test`, então os rate limits ficam ativos; os contadores são zerados depois de cada teste.
+- **Integração** (`tests/integration/`): sobem o `app` com `supertest` contra um Postgres 18 em container (Testcontainers; precisa do Docker rodando). As migrações rodam uma vez num banco modelo, e cada arquivo usa um banco próprio criado a partir dele, limpo depois de cada teste. A API conecta com o mesmo usuário restrito de produção. O único mock é o `email.service` — os testes leem o link enviado a partir das chamadas do mock. O Vitest roda com `NODE_ENV=test`, então os rate limits ficam ativos; os contadores são zerados depois de cada teste.
 
 Nenhum teste acessa o Resend ou um banco real.
 

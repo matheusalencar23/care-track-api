@@ -1,4 +1,6 @@
-import AuditLog, {
+import { getDb } from "../../db/db.js";
+import {
+  auditLogs,
   type AuditAction,
   type AuditResourceType,
 } from "./auditLog.model.js";
@@ -14,13 +16,9 @@ export interface NewAuditLog {
 }
 
 export const save = async (entry: NewAuditLog) => {
-  const auditLog = new AuditLog(entry);
-
-  await auditLog.save();
-
-  return auditLog;
+  await getDb().insert(auditLogs).values(entry);
 };
 
 export const saveMany = async (entries: NewAuditLog[]) => {
-  await AuditLog.insertMany(entries);
+  await getDb().insert(auditLogs).values(entries);
 };
