@@ -26,6 +26,7 @@ vi.mock("../../src/modules/patient/patient.repository.js", () => ({
 
 vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
   record: vi.fn(),
+  recordMany: vi.fn(),
 }));
 
 vi.mock("../../src/shared/appLogger.js", () => ({
@@ -132,11 +133,36 @@ describe("patientService", () => {
         "nurse-1",
         query,
       );
+      expect(auditLogService.recordMany).toHaveBeenCalledWith([
+        {
+          userId: "nurse-1",
+          action: "patient.list",
+          resourceType: "patient",
+          resourceId: "patient-1",
+          patientId: "patient-1",
+        },
+      ]);
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it("should record a single entry without patient when the page is empty", async () => {
+      vi.mocked(patientRepository.listForOwner).mockResolvedValue({
+        patients: [],
+        total: 0,
+      } as Awaited<ReturnType<typeof patientRepository.listForOwner>>);
+
+      await listPatients("nurse-1", {
+        status: "active",
+        page: 1,
+        limit: 20,
+      });
+
       expect(auditLogService.record).toHaveBeenCalledWith({
         userId: "nurse-1",
         action: "patient.list",
         resourceType: "patient",
       });
+      expect(auditLogService.recordMany).not.toHaveBeenCalled();
     });
   });
 

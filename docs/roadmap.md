@@ -64,10 +64,11 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 - [x] Arquivar em vez de excluir.
 - [x] Todas as consultas filtradas por `ownerId`.
 - [x] Registro de consentimento do paciente (ex.: uso de imagem).
-- [ ] Auditoria de cada acesso.
+- [x] Auditoria de cada acesso.
 
 ### Fase 2 — Histórico em texto
 
+- [ ] Transações no MongoDB: rodar o banco como replica set no `docker-compose.yml` e o `MongoMemoryReplSet` nos testes de integração (o Atlas já é replica set). Usar na escrita + auditoria (hoje uma falha na auditoria depois da escrita deixa a alteração sem registro) e no "mover registro" abaixo.
 - [ ] Criação de registros com autor, COREN e horário do servidor.
 - [ ] Edição com versões (coleção de versões anteriores, marca de "editado") e janela de edição livre configurável; motivo obrigatório fora da janela.
 - [ ] Anulação com motivo (`status` ativo/anulado e dados da anulação); anulados fora da linha do tempo, mas consultáveis pela enfermeira.

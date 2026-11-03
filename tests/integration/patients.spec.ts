@@ -426,7 +426,48 @@ describe("patients", () => {
         resourceId: new mongoose.Types.ObjectId(id),
         patientId: new mongoose.Types.ObjectId(id),
       });
-      expect(logs[2]?.patientId).toBeNull();
+      expect(logs[2]).toMatchObject({
+        resourceId: new mongoose.Types.ObjectId(id),
+        patientId: new mongoose.Types.ObjectId(id),
+      });
+    });
+
+    it("should record one entry per listed patient with the same request id", async () => {
+      const { agent } = await signedInAgent();
+      const ids: string[] = [];
+      for (const name of ["Ana", "Bruno", "Carla"]) {
+        const created = await agent
+          .post(`${API}/patients`)
+          .send({ name, birthDate: "1980-01-01" })
+          .expect(201);
+        ids.push(created.body.id);
+      }
+
+      const list = await agent
+        .get(`${API}/patients`)
+        .query({ limit: 2 })
+        .expect(200);
+
+      const logs = await AuditLog.find({ action: "patient.list" }).lean();
+      expect(logs.map((log) => log.patientId?.toString()).sort()).toEqual(
+        [ids[0], ids[1]].sort(),
+      );
+      for (const log of logs) {
+        expect(log.requestId).toBe(list.headers["x-request-id"]);
+      }
+    });
+
+    it("should record a single entry without patient when the list is empty", async () => {
+      const { agent } = await signedInAgent();
+
+      await agent
+        .get(`${API}/patients`)
+        .query({ search: "ninguém" })
+        .expect(200);
+
+      const logs = await AuditLog.find({ action: "patient.list" }).lean();
+      expect(logs).toHaveLength(1);
+      expect(logs[0]?.patientId).toBeNull();
     });
 
     it("should not record a denied access", async () => {

@@ -10,10 +10,10 @@ interface AuditEntry {
   patientId?: string;
 }
 
-export const record = async (entry: AuditEntry) => {
+const toNewAuditLog = (entry: AuditEntry) => {
   const context = getRequestContext();
 
-  await auditLogRepository.save({
+  return {
     userId: entry.userId,
     action: entry.action,
     resourceType: entry.resourceType,
@@ -21,5 +21,17 @@ export const record = async (entry: AuditEntry) => {
     patientId: entry.patientId ?? null,
     requestId: context?.requestId ?? null,
     ip: context?.ip ?? null,
-  });
+  };
+};
+
+export const record = async (entry: AuditEntry) => {
+  await auditLogRepository.save(toNewAuditLog(entry));
+};
+
+export const recordMany = async (entries: AuditEntry[]) => {
+  if (entries.length === 0) {
+    return;
+  }
+
+  await auditLogRepository.saveMany(entries.map(toNewAuditLog));
 };

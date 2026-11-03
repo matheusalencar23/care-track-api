@@ -56,11 +56,23 @@ export const listPatients = async (
     query,
   );
 
-  await auditLogService.record({
-    userId: ownerId,
-    action: "patient.list",
-    resourceType: "patient",
-  });
+  if (patients.length === 0) {
+    await auditLogService.record({
+      userId: ownerId,
+      action: "patient.list",
+      resourceType: "patient",
+    });
+  } else {
+    await auditLogService.recordMany(
+      patients.map((patient) => ({
+        userId: ownerId,
+        action: "patient.list" as const,
+        resourceType: "patient" as const,
+        resourceId: patient.id,
+        patientId: patient.id,
+      })),
+    );
+  }
 
   return {
     items: patients.map(toPatientResponse),

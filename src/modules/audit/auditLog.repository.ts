@@ -20,3 +20,7 @@ export const save = async (entry: NewAuditLog) => {
 
   return auditLog;
 };
+
+export const saveMany = async (entries: NewAuditLog[]) => {
+  await AuditLog.insertMany(entries);
+};
