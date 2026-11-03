@@ -6,7 +6,8 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 
 | Tema | Decisão |
 |---|---|
-| Dono do paciente | A **enfermeira** que o cadastrou (`Patient.nurseId`). Compartilhamento entre profissionais/equipes fica para depois. |
+| Dono do paciente | A **enfermeira** que o cadastrou (`Patient.ownerId`). Compartilhamento entre profissionais/equipes fica para depois. |
+| Nome do campo de dono | `ownerId`, e não `nurseId`: descreve o papel no dado (quem o controla), não a profissão, e continua correto se outros profissionais usarem o sistema ou se houver compartilhamento. Registros do histórico (Fase 2) terão `ownerId` (escopo de isolamento) separado de `authorId` (quem escreveu). |
 | Acesso do paciente | **Não existe.** O histórico é de uso exclusivo da enfermeira; há um único tipo de usuário. |
 | Tamanho de arquivos | Sem otimização por enquanto: limite generoso por arquivo, configurável por variável de ambiente. |
 | Papéis na LGPD | Dados dos pacientes: a enfermeira é **controladora** e o Care Track é **operador**. Dados das enfermeiras (conta, e-mail, COREN): o Care Track é **controlador**. |
@@ -61,7 +62,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 
 - [x] Cadastro, listagem paginada com busca, consulta e edição dos dados cadastrais.
 - [x] Arquivar em vez de excluir.
-- [x] Todas as consultas filtradas por `nurseId`.
+- [x] Todas as consultas filtradas por `ownerId`.
 - [ ] Registro de consentimento do paciente (ex.: uso de imagem).
 - [ ] Auditoria de cada acesso.
 

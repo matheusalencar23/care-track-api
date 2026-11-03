@@ -18,8 +18,8 @@ import { messages } from "../../src/shared/messages.js";
 
 vi.mock("../../src/modules/patient/patient.repository.js", () => ({
   save: vi.fn(),
-  findByIdForNurse: vi.fn(),
-  listForNurse: vi.fn(),
+  findByIdForOwner: vi.fn(),
+  listForOwner: vi.fn(),
   update: vi.fn(),
   setArchivedAt: vi.fn(),
 }));
@@ -108,10 +108,10 @@ describe("patientService", () => {
 
   describe("listPatients", () => {
     it("should return the page with pagination data and record the audit", async () => {
-      vi.mocked(patientRepository.listForNurse).mockResolvedValue({
+      vi.mocked(patientRepository.listForOwner).mockResolvedValue({
         patients: [patient],
         total: 21,
-      } as Awaited<ReturnType<typeof patientRepository.listForNurse>>);
+      } as Awaited<ReturnType<typeof patientRepository.listForOwner>>);
 
       const query = {
         search: "jose",
@@ -128,7 +128,7 @@ describe("patientService", () => {
         totalPages: 2,
       });
 
-      expect(patientRepository.listForNurse).toHaveBeenCalledWith(
+      expect(patientRepository.listForOwner).toHaveBeenCalledWith(
         "nurse-1",
         query,
       );
@@ -141,14 +141,14 @@ describe("patientService", () => {
   });
 
   describe("getPatient", () => {
-    it("should return the nurse's patient and record the audit", async () => {
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(patient);
+    it("should return the owner's patient and record the audit", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(patient);
 
       await expect(getPatient("nurse-1", "patient-1")).resolves.toEqual(
         patientResponse,
       );
 
-      expect(patientRepository.findByIdForNurse).toHaveBeenCalledWith(
+      expect(patientRepository.findByIdForOwner).toHaveBeenCalledWith(
         "patient-1",
         "nurse-1",
       );
@@ -162,7 +162,7 @@ describe("patientService", () => {
     });
 
     it("should throw NotFoundException without recording when the patient is not found", async () => {
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(null);
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(null);
 
       await expect(getPatient("nurse-1", "patient-1")).rejects.toBeInstanceOf(
         NotFoundException,
@@ -172,14 +172,14 @@ describe("patientService", () => {
   });
 
   describe("updatePatient", () => {
-    it("should update the nurse's patient and record the audit", async () => {
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(patient);
+    it("should update the owner's patient and record the audit", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(patient);
 
       await expect(
         updatePatient("nurse-1", "patient-1", patientData),
       ).resolves.toEqual(patientResponse);
 
-      expect(patientRepository.findByIdForNurse).toHaveBeenCalledWith(
+      expect(patientRepository.findByIdForOwner).toHaveBeenCalledWith(
         "patient-1",
         "nurse-1",
       );
@@ -197,7 +197,7 @@ describe("patientService", () => {
     });
 
     it("should throw NotFoundException without recording when the patient is not found", async () => {
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(null);
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(null);
 
       await expect(
         updatePatient("nurse-1", "patient-1", patientData),
@@ -207,7 +207,7 @@ describe("patientService", () => {
     });
 
     it("should throw ConflictException when the patient is archived", async () => {
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
         buildPatient(createdAt),
       );
 
@@ -220,9 +220,9 @@ describe("patientService", () => {
   });
 
   describe("archivePatient", () => {
-    it("should archive the nurse's patient and record the audit", async () => {
+    it("should archive the owner's patient and record the audit", async () => {
       const active = buildPatient();
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(active);
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(active);
 
       await archivePatient("nurse-1", "patient-1");
 
@@ -240,7 +240,7 @@ describe("patientService", () => {
     });
 
     it("should throw NotFoundException when the patient is not found", async () => {
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(null);
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(null);
 
       await expect(
         archivePatient("nurse-1", "patient-1"),
@@ -249,7 +249,7 @@ describe("patientService", () => {
     });
 
     it("should throw ConflictException when the patient is already archived", async () => {
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
         buildPatient(createdAt),
       );
 
@@ -262,9 +262,9 @@ describe("patientService", () => {
   });
 
   describe("unarchivePatient", () => {
-    it("should unarchive the nurse's patient and record the audit", async () => {
+    it("should unarchive the owner's patient and record the audit", async () => {
       const archived = buildPatient(createdAt);
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(archived);
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(archived);
 
       await unarchivePatient("nurse-1", "patient-1");
 
@@ -282,7 +282,7 @@ describe("patientService", () => {
     });
 
     it("should throw ConflictException when the patient is not archived", async () => {
-      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
         buildPatient(),
       );
 

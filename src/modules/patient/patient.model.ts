@@ -1,9 +1,9 @@
 import mongoose, { Document } from "mongoose";
 import { normalizeForSearch } from "../../utils/string.utils.js";
-import { nurseScopePlugin } from "../../db/nurseScope.plugin.js";
+import { ownerScopePlugin } from "../../db/ownerScope.plugin.js";
 
 export interface IPatient extends Document {
-  nurseId: mongoose.Types.ObjectId;
+  ownerId: mongoose.Types.ObjectId;
   name: string;
   searchName: string;
   birthDate: Date;
@@ -17,7 +17,7 @@ export interface IPatient extends Document {
 
 const patientSchema = new mongoose.Schema<IPatient>(
   {
-    nurseId: {
+    ownerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
@@ -56,15 +56,15 @@ const patientSchema = new mongoose.Schema<IPatient>(
   { timestamps: true },
 );
 
-patientSchema.plugin(nurseScopePlugin);
+patientSchema.plugin(ownerScopePlugin);
 
-patientSchema.index({ nurseId: 1, archivedAt: 1, searchName: 1 });
+patientSchema.index({ ownerId: 1, archivedAt: 1, searchName: 1 });
 patientSchema.index(
-  { nurseId: 1, cpf: 1 },
+  { ownerId: 1, cpf: 1 },
   { unique: true, partialFilterExpression: { cpf: { $type: "string" } } },
 );
 patientSchema.index(
-  { nurseId: 1, cns: 1 },
+  { ownerId: 1, cns: 1 },
   { unique: true, partialFilterExpression: { cns: { $type: "string" } } },
 );
 

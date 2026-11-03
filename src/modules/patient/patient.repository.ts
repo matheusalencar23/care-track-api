@@ -11,24 +11,24 @@ const toFields = (data: PatientData) => ({
   phone: data.phone ?? null,
 });
 
-export const save = async (nurseId: string, data: PatientData) => {
-  const patient = new Patient({ nurseId, ...toFields(data) });
+export const save = async (ownerId: string, data: PatientData) => {
+  const patient = new Patient({ ownerId, ...toFields(data) });
 
   await patient.save();
 
   return patient;
 };
 
-export const findByIdForNurse = async (id: string, nurseId: string) => {
-  return await Patient.findOne({ _id: id, nurseId });
+export const findByIdForOwner = async (id: string, ownerId: string) => {
+  return await Patient.findOne({ _id: id, ownerId });
 };
 
-export const listForNurse = async (
-  nurseId: string,
+export const listForOwner = async (
+  ownerId: string,
   { search, status, page, limit }: ListPatientsQuery,
 ) => {
   const filter: QueryFilter<IPatient> = {
-    nurseId,
+    ownerId,
     archivedAt: status === "archived" ? { $ne: null } : null,
   };
 

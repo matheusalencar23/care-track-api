@@ -2,16 +2,16 @@ import mongoose from "mongoose";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import Patient from "../../src/modules/patient/patient.model.js";
-import { MissingNurseScopeError } from "../../src/db/nurseScope.plugin.js";
+import { MissingOwnerScopeError } from "../../src/db/ownerScope.plugin.js";
 
-const nurseId = new mongoose.Types.ObjectId();
+const ownerId = new mongoose.Types.ObjectId();
 
-describe("nurse scope", () => {
+describe("owner scope", () => {
   let patientId: mongoose.Types.ObjectId;
 
   beforeEach(async () => {
     const patient = await Patient.create({
-      nurseId,
+      ownerId,
       name: "José da Silva",
       birthDate: "1950-03-15",
     });
@@ -39,43 +39,43 @@ describe("nurse scope", () => {
     [
       "aggregate without leading $match",
       () =>
-        Patient.aggregate([{ $sort: { name: 1 } }, { $match: { nurseId } }]),
+        Patient.aggregate([{ $sort: { name: 1 } }, { $match: { ownerId } }]),
     ],
     [
       "bulkWrite",
       () =>
         Patient.bulkWrite([
-          { deleteOne: { filter: { _id: patientId, nurseId } } },
+          { deleteOne: { filter: { _id: patientId, ownerId } } },
         ]),
     ],
-    ["undefined nurseId", () => Patient.find({ nurseId: undefined })],
-  ])("should reject %s without nurseId", async (_name, query) => {
-    await expect(query()).rejects.toBeInstanceOf(MissingNurseScopeError);
+    ["undefined ownerId", () => Patient.find({ ownerId: undefined })],
+  ])("should reject %s without ownerId", async (_name, query) => {
+    await expect(query()).rejects.toBeInstanceOf(MissingOwnerScopeError);
   });
 
-  it("should allow queries filtered by nurseId", async () => {
+  it("should allow queries filtered by ownerId", async () => {
     await expect(
-      Patient.findOne({ _id: patientId, nurseId }),
+      Patient.findOne({ _id: patientId, ownerId }),
     ).resolves.not.toBeNull();
-    await expect(Patient.countDocuments({ nurseId })).resolves.toBe(1);
+    await expect(Patient.countDocuments({ ownerId })).resolves.toBe(1);
     await expect(
-      Patient.aggregate([{ $match: { nurseId } }, { $count: "total" }]),
+      Patient.aggregate([{ $match: { ownerId } }, { $count: "total" }]),
     ).resolves.toEqual([{ total: 1 }]);
   });
 
   it("should leave the data untouched when a query is rejected", async () => {
     await expect(Patient.deleteMany({})).rejects.toThrow();
 
-    await expect(Patient.countDocuments({ nurseId })).resolves.toBe(1);
+    await expect(Patient.countDocuments({ ownerId })).resolves.toBe(1);
   });
 
   it("should not let the owner of a patient change", async () => {
-    const patient = await Patient.findOne({ _id: patientId, nurseId }).orFail();
+    const patient = await Patient.findOne({ _id: patientId, ownerId }).orFail();
 
-    patient.nurseId = new mongoose.Types.ObjectId();
+    patient.ownerId = new mongoose.Types.ObjectId();
     await patient.save();
 
-    const stored = await Patient.findOne({ _id: patientId, nurseId });
+    const stored = await Patient.findOne({ _id: patientId, ownerId });
     expect(stored).not.toBeNull();
   });
 });

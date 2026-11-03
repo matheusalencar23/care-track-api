@@ -22,8 +22,8 @@ export const toPatientResponse = (patient: HydratedDocument<IPatient>) => ({
   updatedAt: patient.updatedAt,
 });
 
-const findPatientOrThrow = async (nurseId: string, patientId: string) => {
-  const patient = await patientRepository.findByIdForNurse(patientId, nurseId);
+const findPatientOrThrow = async (ownerId: string, patientId: string) => {
+  const patient = await patientRepository.findByIdForOwner(patientId, ownerId);
 
   if (!patient) {
     throw new NotFoundException(messages.PATIENT_NOT_FOUND);
@@ -32,11 +32,11 @@ const findPatientOrThrow = async (nurseId: string, patientId: string) => {
   return patient;
 };
 
-export const createPatient = async (nurseId: string, data: PatientData) => {
-  const patient = await patientRepository.save(nurseId, data);
+export const createPatient = async (ownerId: string, data: PatientData) => {
+  const patient = await patientRepository.save(ownerId, data);
 
   await auditLogService.record({
-    userId: nurseId,
+    userId: ownerId,
     action: "patient.create",
     resourceType: "patient",
     resourceId: patient.id,
@@ -48,16 +48,16 @@ export const createPatient = async (nurseId: string, data: PatientData) => {
 };
 
 export const listPatients = async (
-  nurseId: string,
+  ownerId: string,
   query: ListPatientsQuery,
 ) => {
-  const { patients, total } = await patientRepository.listForNurse(
-    nurseId,
+  const { patients, total } = await patientRepository.listForOwner(
+    ownerId,
     query,
   );
 
   await auditLogService.record({
-    userId: nurseId,
+    userId: ownerId,
     action: "patient.list",
     resourceType: "patient",
   });
@@ -71,11 +71,11 @@ export const listPatients = async (
   };
 };
 
-export const getPatient = async (nurseId: string, patientId: string) => {
-  const patient = await findPatientOrThrow(nurseId, patientId);
+export const getPatient = async (ownerId: string, patientId: string) => {
+  const patient = await findPatientOrThrow(ownerId, patientId);
 
   await auditLogService.record({
-    userId: nurseId,
+    userId: ownerId,
     action: "patient.read",
     resourceType: "patient",
     resourceId: patient.id,
@@ -86,11 +86,11 @@ export const getPatient = async (nurseId: string, patientId: string) => {
 };
 
 export const updatePatient = async (
-  nurseId: string,
+  ownerId: string,
   patientId: string,
   data: PatientData,
 ) => {
-  const patient = await findPatientOrThrow(nurseId, patientId);
+  const patient = await findPatientOrThrow(ownerId, patientId);
 
   if (patient.archivedAt) {
     throw new ConflictException(messages.PATIENT_ARCHIVED);
@@ -99,7 +99,7 @@ export const updatePatient = async (
   await patientRepository.update(patient, data);
 
   await auditLogService.record({
-    userId: nurseId,
+    userId: ownerId,
     action: "patient.update",
     resourceType: "patient",
     resourceId: patient.id,
@@ -110,8 +110,8 @@ export const updatePatient = async (
   return toPatientResponse(patient);
 };
 
-export const archivePatient = async (nurseId: string, patientId: string) => {
-  const patient = await findPatientOrThrow(nurseId, patientId);
+export const archivePatient = async (ownerId: string, patientId: string) => {
+  const patient = await findPatientOrThrow(ownerId, patientId);
 
   if (patient.archivedAt) {
     throw new ConflictException(messages.PATIENT_ALREADY_ARCHIVED);
@@ -120,7 +120,7 @@ export const archivePatient = async (nurseId: string, patientId: string) => {
   await patientRepository.setArchivedAt(patient, new Date());
 
   await auditLogService.record({
-    userId: nurseId,
+    userId: ownerId,
     action: "patient.archive",
     resourceType: "patient",
     resourceId: patient.id,
@@ -131,8 +131,8 @@ export const archivePatient = async (nurseId: string, patientId: string) => {
   return toPatientResponse(patient);
 };
 
-export const unarchivePatient = async (nurseId: string, patientId: string) => {
-  const patient = await findPatientOrThrow(nurseId, patientId);
+export const unarchivePatient = async (ownerId: string, patientId: string) => {
+  const patient = await findPatientOrThrow(ownerId, patientId);
 
   if (!patient.archivedAt) {
     throw new ConflictException(messages.PATIENT_NOT_ARCHIVED);
@@ -141,7 +141,7 @@ export const unarchivePatient = async (nurseId: string, patientId: string) => {
   await patientRepository.setArchivedAt(patient, null);
 
   await auditLogService.record({
-    userId: nurseId,
+    userId: ownerId,
     action: "patient.unarchive",
     resourceType: "patient",
     resourceId: patient.id,

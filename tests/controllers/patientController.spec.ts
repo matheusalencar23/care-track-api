@@ -69,7 +69,7 @@ describe("patientController", () => {
       vi.mocked(createPatient).mockResolvedValue(patient as never);
       const req = createMockRequest({
         user,
-        body: { ...body, nurseId: "someone-else" },
+        body: { ...body, ownerId: "someone-else" },
       });
       const res = createMockResponse();
       const next = createMockNext();
