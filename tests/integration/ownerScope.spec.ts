@@ -48,7 +48,23 @@ describe("owner scope", () => {
           { deleteOne: { filter: { _id: patientId, ownerId } } },
         ]),
     ],
-    ["undefined ownerId", () => Patient.find({ ownerId: undefined })],
+    [
+      "ownerId with $exists",
+      () => Patient.find({ ownerId: { $exists: true } }),
+    ],
+    ["ownerId with $ne", () => Patient.find({ ownerId: { $ne: ownerId } })],
+    ["ownerId with $in", () => Patient.find({ ownerId: { $in: [ownerId] } })],
+    [
+      "aggregate with $exists on ownerId",
+      () => Patient.aggregate([{ $match: { ownerId: { $exists: true } } }]),
+    ],
+    [
+      "undefined ownerId",
+      () =>
+        Patient.find({
+          ownerId: undefined as unknown as mongoose.Types.ObjectId,
+        }),
+    ],
   ])("should reject %s without ownerId", async (_name, query) => {
     await expect(query()).rejects.toBeInstanceOf(MissingOwnerScopeError);
   });
@@ -58,6 +74,12 @@ describe("owner scope", () => {
       Patient.findOne({ _id: patientId, ownerId }),
     ).resolves.not.toBeNull();
     await expect(Patient.countDocuments({ ownerId })).resolves.toBe(1);
+    await expect(
+      Patient.countDocuments({ ownerId: ownerId.toString() }),
+    ).resolves.toBe(1);
+    await expect(
+      Patient.countDocuments({ ownerId: { $eq: ownerId } }),
+    ).resolves.toBe(1);
     await expect(
       Patient.aggregate([{ $match: { ownerId } }, { $count: "total" }]),
     ).resolves.toEqual([{ total: 1 }]);

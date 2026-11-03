@@ -13,6 +13,16 @@ export const messages = {
 
   PATIENT_NOT_ARCHIVED: "Este paciente não está arquivado.",
 
+  CONSENT_NOT_FOUND: "Consentimento não encontrado!",
+
+  CONSENT_ALREADY_ACTIVE:
+    "Já existe um consentimento ativo deste tipo para o paciente.",
+
+  CONSENT_ALREADY_REVOKED: "Este consentimento já foi revogado.",
+
+  CONSENT_REQUIRES_REPRESENTATIVE:
+    "O paciente é menor de idade: o consentimento deve ser dado pelo responsável legal.",
+
   INVALID_LINK_TOKEN: "Link inválido ou expirado!",
 
   EMAIL_ALREADY_VERIFIED: "Este e-mail já foi confirmado!",

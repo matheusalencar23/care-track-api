@@ -10,6 +10,7 @@ import {
 } from "./patient.schema.js";
 import { schemaValidationMiddleware } from "../../middlewares/schemaValidation.middleware.js";
 import { authenticationMiddleware } from "../auth/auth.middleware.js";
+import consentRoutes from "../consent/consent.routes.js";
 
 const routes = Router();
 
@@ -50,5 +51,7 @@ routes.post(
   schemaValidationMiddleware(ArchivePatientSchema),
   patientController.unarchive,
 );
+
+routes.use("/:id/consents", consentRoutes);
 
 export default routes;

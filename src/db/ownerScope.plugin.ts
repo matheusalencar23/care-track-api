@@ -1,4 +1,9 @@
-import type { MongooseQueryMiddleware, PipelineStage, Schema } from "mongoose";
+import {
+  Types,
+  type MongooseQueryMiddleware,
+  type PipelineStage,
+  type Schema,
+} from "mongoose";
 
 const FILTERED_QUERIES: MongooseQueryMiddleware[] = [
   "countDocuments",
@@ -22,8 +27,29 @@ export class MissingOwnerScopeError extends Error {
   }
 }
 
+const isSingleOwner = (value: unknown) => {
+  return typeof value === "string" || value instanceof Types.ObjectId;
+};
+
+const isEqualityOnSingleOwner = (value: unknown): boolean => {
+  if (isSingleOwner(value)) {
+    return true;
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const keys = Object.keys(value);
+  return (
+    keys.length === 1 &&
+    keys[0] === "$eq" &&
+    isSingleOwner((value as { $eq: unknown }).$eq)
+  );
+};
+
 const hasOwnerId = (filter: Record<string, unknown> | undefined) => {
-  return filter?.["ownerId"] != null;
+  return isEqualityOnSingleOwner(filter?.["ownerId"]);
 };
 
 const firstStageMatchesOwner = (pipeline: PipelineStage[]) => {

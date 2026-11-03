@@ -10,11 +10,14 @@ export const AUDIT_ACTIONS = [
   "patient.update",
   "patient.archive",
   "patient.unarchive",
+  "consent.grant",
+  "consent.list",
+  "consent.revoke",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
-export const AUDIT_RESOURCE_TYPES = ["user", "patient"] as const;
+export const AUDIT_RESOURCE_TYPES = ["user", "patient", "consent"] as const;
 
 export type AuditResourceType = (typeof AUDIT_RESOURCE_TYPES)[number];
 

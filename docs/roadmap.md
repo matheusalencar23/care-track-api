@@ -63,7 +63,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 - [x] Cadastro, listagem paginada com busca, consulta e edição dos dados cadastrais.
 - [x] Arquivar em vez de excluir.
 - [x] Todas as consultas filtradas por `ownerId`.
-- [ ] Registro de consentimento do paciente (ex.: uso de imagem).
+- [x] Registro de consentimento do paciente (ex.: uso de imagem).
 - [ ] Auditoria de cada acesso.
 
 ### Fase 2 — Histórico em texto
@@ -83,6 +83,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 - [ ] Remoção de EXIF/GPS das imagens.
 - [ ] Arquivos sempre anexados a um registro do histórico. Arquivos não são editados: ao anular o registro, os anexos são anulados junto; para trocar um arquivo, anula-se e anexa-se de novo.
 - [ ] Antivírus (ClamAV) — pode ficar para depois.
+- [ ] **Comprovação do consentimento** (forma a definir). Hoje o consentimento (Fase 1) só registra tipo, forma de coleta (`written`/`verbal`), quem consentiu e quando, sem prova anexada. Opções levantadas: foto ou digitalização de um termo assinado em papel; assinatura com o dedo na tela (imagem do traço, com data, hora e dispositivo); impressão digital; assinatura eletrônica por um serviço externo. Pontos para a decisão: os níveis de assinatura eletrônica da Lei 14.063/2020 (simples, avançada, qualificada) e qual basta para o consentimento; a impressão digital é dado biométrico, sensível pela LGPD, e exigiria justificativa própria; a prova é exceção à regra "arquivo sempre anexado a um registro do histórico", pois se liga ao consentimento, mas também não pode ser editada nem excluída; se o consentimento `verbal` continua aceito e como comprová-lo (ex.: testemunha). Validar a escolha na revisão jurídica da Fase 4.
 
 ### Fase 4 — Governança LGPD
 
