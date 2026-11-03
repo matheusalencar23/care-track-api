@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- Node `^22.14.0 || >=24.10.0` (exigência do semantic-release; versão usada no CI e na imagem: `.nvmrc`)
+- Node `^22.14.0 || >=24.10.0` (exigência do semantic-release). O CI e a imagem usam o Node 24 (`.nvmrc`), que traz o npm 11 — a mesma versão major com que o Dependabot gera o `package-lock.json`
 - MongoDB
 
 ## Configuração
