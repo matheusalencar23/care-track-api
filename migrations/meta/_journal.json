@@ -22,6 +22,20 @@
       "when": 1793724672180,
       "tag": "0002_security",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793729224090,
+      "tag": "0003_records",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793729224645,
+      "tag": "0004_records_security",
+      "breakpoints": true
     }
   ]
 }
