@@ -1,7 +1,8 @@
 import request from "supertest";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import app from "../../src/app.js";
+import { messages } from "../../src/shared/messages.js";
 import { API, createVerifiedUser, userData } from "./helpers.js";
 
 describe("rate limits", () => {
@@ -29,6 +30,7 @@ describe("rate limits", () => {
       await attempt().expect(400);
     }
 
-    await attempt().expect(429);
+    const blocked = await attempt().expect(429);
+    expect(blocked.body.message).toBe(messages.TOO_MANY_REQUESTS);
   });
 });

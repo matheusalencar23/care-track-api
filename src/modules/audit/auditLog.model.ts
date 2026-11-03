@@ -4,11 +4,15 @@ export const AUDIT_ACTIONS = [
   "auth.signin",
   "auth.signout",
   "auth.password_reset",
+  "patient.create",
+  "patient.list",
+  "patient.read",
+  "patient.update",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
-export const AUDIT_RESOURCE_TYPES = ["user"] as const;
+export const AUDIT_RESOURCE_TYPES = ["user", "patient"] as const;
 
 export type AuditResourceType = (typeof AUDIT_RESOURCE_TYPES)[number];
 

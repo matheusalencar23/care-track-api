@@ -1,6 +1,7 @@
 import { Router } from "express";
 import userRoutes from "./modules/user/user.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
+import patientRoutes from "./modules/patient/patient.routes.js";
 import mongoose from "mongoose";
 import { APP_VERSION } from "./config/appInfo.js";
 import { generalLimiter } from "./middlewares/rateLimit.middleware.js";
@@ -9,6 +10,7 @@ const routes = Router();
 
 routes.use("/users", generalLimiter, userRoutes);
 routes.use("/auth", generalLimiter, authRoutes);
+routes.use("/patients", generalLimiter, patientRoutes);
 
 routes.get("/health", (_req, res) => {
   const isDbConnected = mongoose.connection.readyState === 1;

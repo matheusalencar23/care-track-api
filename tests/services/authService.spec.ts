@@ -303,7 +303,7 @@ describe("authService", () => {
 
       await expect(
         resetPassword("valid-token", "new-password"),
-      ).rejects.toThrow("Invalid token!");
+      ).rejects.toThrow(messages.INVALID_LINK_TOKEN);
     });
 
     it("should propagate the error when the token is invalid", async () => {

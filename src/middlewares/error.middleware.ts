@@ -5,6 +5,7 @@ import {
 } from "../shared/exceptions/index.js";
 import { isDuplicateKeyError } from "../utils/mongo.utils.js";
 import { AppLogger } from "../shared/appLogger.js";
+import { messages } from "../shared/messages.js";
 
 export const errorMiddleware = (
   err: unknown,
@@ -13,7 +14,7 @@ export const errorMiddleware = (
   _next: NextFunction,
 ) => {
   if (isDuplicateKeyError(err)) {
-    const conflict = new ConflictException("Conflict");
+    const conflict = new ConflictException(messages.CONFLICT);
     AppLogger.warn("Duplicate key error", { statusCode: conflict.statusCode });
     return res.status(conflict.statusCode).json(conflict.toJson());
   }
@@ -29,7 +30,7 @@ export const errorMiddleware = (
   }
 
   const statusCode = 500;
-  const message = "Internal Server Error";
+  const message = messages.INTERNAL_SERVER_ERROR;
 
   AppLogger.error(`${statusCode} - ${message}`);
   if (err instanceof Error && err.stack) {

@@ -33,11 +33,11 @@ export const validateUser = async (token: string) => {
   );
 
   if (!user) {
-    throw new UnprocessableEntityException("Invalid token!", []);
+    throw new UnprocessableEntityException(messages.INVALID_LINK_TOKEN, []);
   }
 
   if (user.emailVerifiedAt) {
-    throw new UnprocessableEntityException("Email already verified!", []);
+    throw new UnprocessableEntityException(messages.EMAIL_ALREADY_VERIFIED, []);
   }
 
   user.emailVerifiedAt = new Date();
@@ -52,17 +52,15 @@ export const resendValidation = async (email: string) => {
   const user = await userRepository.findByEmail(email);
 
   if (!user) {
-    throw new NotFoundException("User not found!");
+    throw new NotFoundException(messages.USER_NOT_FOUND);
   }
 
   if (user.emailVerifiedAt) {
-    throw new UnprocessableEntityException("Email already verified!", []);
+    throw new UnprocessableEntityException(messages.EMAIL_ALREADY_VERIFIED, []);
   }
 
   if (await emailVerificationTokenService.isOnResendCooldown(user.id)) {
-    throw new TooManyRequestsException(
-      "Confirmation email was sent recently, try again later",
-    );
+    throw new TooManyRequestsException(messages.CONFIRMATION_EMAIL_COOLDOWN);
   }
 
   await createValidationEmail(user.id, email, user.name);

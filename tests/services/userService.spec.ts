@@ -192,7 +192,7 @@ describe("userService", () => {
       vi.mocked(userRepository.findById).mockResolvedValue(null);
 
       await expect(validateUser("valid-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
       expect(
         emailVerificationTokenService.markTokenAsUsed,
@@ -209,7 +209,7 @@ describe("userService", () => {
       } as never);
 
       await expect(validateUser("valid-token")).rejects.toThrow(
-        "Email already verified!",
+        messages.EMAIL_ALREADY_VERIFIED,
       );
       expect(
         emailVerificationTokenService.markTokenAsUsed,
@@ -251,7 +251,7 @@ describe("userService", () => {
       vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
 
       await expect(resendValidation("ghost@example.com")).rejects.toThrow(
-        "User not found!",
+        messages.USER_NOT_FOUND,
       );
 
       expect(sendConfirmationEmail).not.toHaveBeenCalled();
@@ -265,7 +265,7 @@ describe("userService", () => {
       } as never);
 
       await expect(resendValidation("john@example.com")).rejects.toThrow(
-        "Email already verified!",
+        messages.EMAIL_ALREADY_VERIFIED,
       );
 
       expect(sendConfirmationEmail).not.toHaveBeenCalled();

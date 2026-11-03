@@ -59,7 +59,7 @@ export const resetPassword = async (token: string, password: string) => {
   );
 
   if (!user) {
-    throw new UnprocessableEntityException("Invalid token!", []);
+    throw new UnprocessableEntityException(messages.INVALID_LINK_TOKEN, []);
   }
 
   const now = new Date();

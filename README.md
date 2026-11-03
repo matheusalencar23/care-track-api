@@ -70,6 +70,10 @@ Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um c
 | POST   | `/api/v1/auth/reset-password`   | Define a nova senha a partir do token | não         | 100/h e 10/15min |
 | POST   | `/api/v1/auth/signout`          | Logout, remove o cookie               | sim         | 100/h            |
 | GET    | `/api/v1/auth/me`               | Retorna o usuário autenticado         | sim         | 100/h            |
+| POST   | `/api/v1/patients`              | Cadastra um paciente                  | sim         | 100/h            |
+| GET    | `/api/v1/patients`              | Lista pacientes (paginada, com busca) | sim         | 100/h            |
+| GET    | `/api/v1/patients/:id`          | Consulta um paciente                  | sim         | 100/h            |
+| PUT    | `/api/v1/patients/:id`          | Edita os dados cadastrais             | sim         | 100/h            |
 | GET    | `/api/v1/health`                | Health check (API, banco e versão)    | não         | —                |
 
 Os limites são por IP e ficam desativados com `NODE_ENV=development`. O login só é aceito depois que o e-mail for confirmado. O `/users/resend` responde 200 mesmo para e-mails não cadastrados (exceto quando estoura o limite por IP, que retorna 429) e só envia um novo e-mail se o anterior tiver mais de 60 segundos.
@@ -77,6 +81,8 @@ Os limites são por IP e ficam desativados com `NODE_ENV=development`. O login s
 O `signup` recebe `{ name, email, password, coren, corenState }`: `coren` é o número de inscrição (só dígitos) e `corenState` a UF do conselho regional (`SP`, `RJ`...). Os dois voltam também no `/auth/me` e identificam a enfermeira como autora dos registros.
 
 Recuperação de senha: o `/auth/forgot-password` segue as mesmas regras do `/users/resend` (sempre 200, intervalo de 60 segundos) e envia um link `PASSWORD_RESET_HOST?token=...` válido por 30 minutos. O front-end envia esse token com a nova senha (`{ token, password }`) ao `/auth/reset-password`. A troca invalida todos os links de redefinição pendentes e todas as sessões abertas antes dela; se o e-mail ainda não tinha sido confirmado, passa a constar como confirmado (o link chegou por ele).
+
+Pacientes: cada paciente pertence à enfermeira que o cadastrou, e as rotas só enxergam os pacientes da enfermeira autenticada (o de outra responde 404). O `POST` e o `PUT` recebem `{ name, birthDate, cpf?, cns?, phone? }`: `birthDate` no formato `AAAA-MM-DD`; `cpf` (11 dígitos, com dígitos verificadores), `cns` (Cartão SUS, 15 dígitos) e `phone` (DDD + número, 10 ou 11 dígitos) são opcionais e só com números. O `PUT` substitui os dados cadastrais: um campo opcional omitido é apagado. CPF e Cartão SUS não se repetem entre os pacientes de uma mesma enfermeira (409). A listagem aceita `?search=&page=&limit=` (padrão `page=1`, `limit=20`, máximo 100), ordena por nome e responde `{ items, page, limit, total, totalPages }`; a busca ignora acentos e maiúsculas e, se tiver só números (pontuação é ignorada), procura também pelo CPF ou Cartão SUS exatos. Todo acesso a paciente é registrado no log de auditoria.
 
 ## Deploy
 

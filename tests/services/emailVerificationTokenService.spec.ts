@@ -10,6 +10,7 @@ import {
   markTokenAsUsed,
 } from "../../src/modules/email/emailVerificationToken.service.js";
 import * as emailVerificationTokenRepository from "../../src/modules/email/emailVerificationToken.repository.js";
+import { messages } from "../../src/shared/messages.js";
 
 vi.mock("../../src/modules/email/emailVerificationToken.repository.js", () => ({
   save: vi.fn(),
@@ -39,9 +40,7 @@ describe("emailVerificationTokenService", () => {
 
       expect(userId).toBe("user-123");
       expect(storedHash).not.toBe(token);
-      expect(storedHash).toBe(
-        createHash("sha256").update(token).digest("hex"),
-      );
+      expect(storedHash).toBe(createHash("sha256").update(token).digest("hex"));
       expect(expiresAt).toBeInstanceOf(Date);
       expect((expiresAt as Date).getTime()).toBeGreaterThan(Date.now());
     });
@@ -54,31 +53,35 @@ describe("emailVerificationTokenService", () => {
       );
 
       await expect(findValidToken("unknown-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
     });
 
     it("should throw when the token has already been used", async () => {
-      vi.mocked(emailVerificationTokenRepository.findByToken).mockResolvedValue({
-        usedAt: new Date(),
-        expiresAt: new Date(Date.now() + 60_000),
-        save: vi.fn(),
-      } as never);
+      vi.mocked(emailVerificationTokenRepository.findByToken).mockResolvedValue(
+        {
+          usedAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          save: vi.fn(),
+        } as never,
+      );
 
       await expect(findValidToken("used-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
     });
 
     it("should throw when the token has expired", async () => {
-      vi.mocked(emailVerificationTokenRepository.findByToken).mockResolvedValue({
-        usedAt: null,
-        expiresAt: new Date(Date.now() - 60_000),
-        save: vi.fn(),
-      } as never);
+      vi.mocked(emailVerificationTokenRepository.findByToken).mockResolvedValue(
+        {
+          usedAt: null,
+          expiresAt: new Date(Date.now() - 60_000),
+          save: vi.fn(),
+        } as never,
+      );
 
       await expect(findValidToken("expired-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
     });
 

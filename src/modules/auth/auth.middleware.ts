@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
   HttpException,
 } from "../../shared/exceptions/index.js";
+import { messages } from "../../shared/messages.js";
 
 const isIssuedBeforePasswordChange = (
   issuedAt: number | undefined,
@@ -28,12 +29,12 @@ export const authenticationMiddleware = async (
 ) => {
   try {
     if (!req.cookies.token) {
-      return next(new UnauthorizedException("Invalid token"));
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
     const token = req.cookies.token;
     if (!token) {
-      return next(new UnauthorizedException("Invalid token"));
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
     const verifiedToken = verifyToken(token);
@@ -43,13 +44,13 @@ export const authenticationMiddleware = async (
     });
 
     if (!user) {
-      return next(new UnauthorizedException("Invalid token"));
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
     if (
       isIssuedBeforePasswordChange(verifiedToken.iat, user.passwordChangedAt)
     ) {
-      return next(new UnauthorizedException("Invalid token"));
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
     req.user = {
@@ -66,6 +67,6 @@ export const authenticationMiddleware = async (
     }
 
     AppLogger.error(`Authentication error: ${err}`);
-    return next(new HttpException("Internal Server Error", 500, null));
+    return next(new HttpException(messages.INTERNAL_SERVER_ERROR, 500, null));
   }
 };
