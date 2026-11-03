@@ -11,6 +11,7 @@ import {
 import { schemaValidationMiddleware } from "../../middlewares/schemaValidation.middleware.js";
 import { authenticationMiddleware } from "../auth/auth.middleware.js";
 import consentRoutes from "../consent/consent.routes.js";
+import recordRoutes from "../record/record.routes.js";
 
 const routes = Router();
 
@@ -53,5 +54,7 @@ routes.post(
 );
 
 routes.use("/:id/consents", consentRoutes);
+
+routes.use("/:id/records", recordRoutes);
 
 export default routes;

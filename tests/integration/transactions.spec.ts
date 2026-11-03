@@ -6,6 +6,10 @@ import * as auditLogRepository from "../../src/modules/audit/auditLog.repository
 import { auditLogs } from "../../src/modules/audit/auditLog.model.js";
 import { patients } from "../../src/modules/patient/patient.model.js";
 import {
+  records,
+  recordVersions,
+} from "../../src/modules/record/record.model.js";
+import {
   API,
   createVerifiedUser,
   userData,
@@ -69,6 +73,23 @@ describe("write and audit in the same transaction", () => {
     const [stored] = await testDb().select().from(patients);
     expect(stored?.name).toBe("José da Silva");
     expect(await countRows(auditLogs)).toBe(2);
+  });
+
+  it("should not create a record when the audit fails", async () => {
+    const agent = await signedInAgent();
+    const created = await agent
+      .post(`${API}/patients`)
+      .send({ name: "José da Silva", birthDate: "1950-03-15" })
+      .expect(201);
+    failNextAudit();
+
+    await agent
+      .post(`${API}/patients/${created.body.id}/records`)
+      .send({ content: "Curativo realizado" })
+      .expect(500);
+
+    expect(await countRows(records)).toBe(0);
+    expect(await countRows(recordVersions)).toBe(0);
   });
 
   it("should not change the password when the audit fails", async () => {

@@ -32,6 +32,19 @@ const findPatientOrThrow = async (ownerId: string, patientId: string) => {
   return patient;
 };
 
+export const assertPatientIsActive = async (
+  ownerId: string,
+  patientId: string,
+) => {
+  await withOwnerScope(ownerId, async () => {
+    const patient = await findPatientOrThrow(ownerId, patientId);
+
+    if (patient.archivedAt) {
+      throw new ConflictException(messages.PATIENT_ARCHIVED);
+    }
+  });
+};
+
 export const createPatient = async (ownerId: string, data: PatientData) => {
   const patient = await withOwnerScope(ownerId, async () => {
     const patient = await patientRepository.save(ownerId, data);

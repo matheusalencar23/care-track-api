@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createdAt, id, ownerIsolationPolicy } from "../../db/columns.js";
 import { patients } from "../patient/patient.model.js";
-import { users } from "../user/user.model.js";
+import { brazilianStateEnum, users } from "../user/user.model.js";
 
 export const records = pgTable(
   "records",
@@ -52,6 +52,9 @@ export const recordVersions = pgTable(
     authorId: uuid()
       .notNull()
       .references(() => users.id),
+    authorName: text().notNull(),
+    authorCoren: text().notNull(),
+    authorCorenState: brazilianStateEnum().notNull(),
     reason: text(),
     createdAt: createdAt(),
   },

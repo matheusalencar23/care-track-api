@@ -36,6 +36,20 @@
       "when": 1793729224645,
       "tag": "0004_records_security",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793729929215,
+      "tag": "0005_record_authors",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793729929938,
+      "tag": "0006_record_authors_security",
+      "breakpoints": true
     }
   ]
 }

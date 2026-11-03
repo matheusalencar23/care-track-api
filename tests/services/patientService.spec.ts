@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   archivePatient,
+  assertPatientIsActive,
   createPatient,
   getPatient,
   listPatients,
@@ -204,6 +205,46 @@ describe("patientService", () => {
         NotFoundException,
       );
       expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("assertPatientIsActive", () => {
+    it("should resolve for an active patient of the owner without recording", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(patient);
+
+      await expect(
+        assertPatientIsActive("nurse-1", "patient-1"),
+      ).resolves.toBeUndefined();
+
+      expect(withOwnerScope).toHaveBeenCalledWith(
+        "nurse-1",
+        expect.any(Function),
+      );
+      expect(patientRepository.findByIdForOwner).toHaveBeenCalledWith(
+        "patient-1",
+        "nurse-1",
+      );
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException when the patient is not found", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(null);
+
+      await expect(
+        assertPatientIsActive("nurse-1", "patient-1"),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("should throw ConflictException when the patient is archived", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue({
+        ...patient,
+        archivedAt: new Date(),
+      });
+
+      const promise = assertPatientIsActive("nurse-1", "patient-1");
+
+      await expect(promise).rejects.toBeInstanceOf(ConflictException);
+      await expect(promise).rejects.toThrow(messages.PATIENT_ARCHIVED);
     });
   });
 

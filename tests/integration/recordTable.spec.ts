@@ -12,13 +12,15 @@ const INSERT_RECORD = `
     VALUES ($1, $2, $1)
     RETURNING id, owner_id, author_id
   )
-  INSERT INTO record_versions (owner_id, record_id, author_id, content)
-  SELECT owner_id, id, author_id, $3 FROM record
+  INSERT INTO record_versions (owner_id, record_id, author_id, author_name, author_coren, author_coren_state, content)
+  SELECT owner_id, record.id, author_id, name, coren, coren_state, $3
+  FROM record JOIN users ON users.id = record.author_id
   RETURNING record_id, version, content`;
 
 const INSERT_VERSION = `
-  INSERT INTO record_versions (owner_id, record_id, author_id, content, reason, version)
-  VALUES ($1, $2, $1, $3, $4, 7)
+  INSERT INTO record_versions (owner_id, record_id, author_id, author_name, author_coren, author_coren_state, content, reason, version)
+  SELECT $1, $2, id, name, coren, coren_state, $3, $4, 7
+  FROM users WHERE id = $1
   RETURNING version`;
 
 describe("records tables", () => {
@@ -196,8 +198,9 @@ describe("records tables", () => {
          VALUES ($1, $2, $1, '2000-01-01')
          RETURNING id, owner_id, author_id, created_at
        ), version AS (
-         INSERT INTO record_versions (owner_id, record_id, author_id, content, created_at)
-         SELECT owner_id, id, author_id, 'Retroativo', '2000-01-01' FROM record
+         INSERT INTO record_versions (owner_id, record_id, author_id, author_name, author_coren, author_coren_state, content, created_at)
+         SELECT owner_id, record.id, author_id, name, coren, coren_state, 'Retroativo', '2000-01-01'
+         FROM record JOIN users ON users.id = record.author_id
          RETURNING created_at
        )
        SELECT record.created_at AS record_time, version.created_at AS version_time,
@@ -260,6 +263,27 @@ describe("records tables", () => {
     },
   );
 
+  it.each([
+    ["name", "'Outra pessoa', coren, coren_state"],
+    ["COREN", "name, '999999', coren_state"],
+    ["COREN state", "name, coren, 'RJ'"],
+  ])(
+    "should reject a version whose author %s does not match the user",
+    async (_field, authorColumns) => {
+      const recordId = await insertRecord();
+
+      await expect(
+        adminQuery(
+          `INSERT INTO record_versions (owner_id, record_id, author_id,
+             author_name, author_coren, author_coren_state, content)
+           SELECT $1, $2, id, ${authorColumns}, 'Texto novo'
+           FROM users WHERE id = $1`,
+          [ownerId, recordId],
+        ),
+      ).rejects.toThrow("must match the current data of the user");
+    },
+  );
+
   it("should allow a version without text, for records with only files", async () => {
     await insertRecord(null);
 
@@ -281,8 +305,9 @@ describe("records tables", () => {
            VALUES ($1, $2, $1)
            RETURNING id, owner_id, author_id
          )
-         INSERT INTO record_versions (owner_id, record_id, author_id, content, reason)
-         SELECT owner_id, id, author_id, 'Texto', 'Motivo' FROM record`,
+         INSERT INTO record_versions (owner_id, record_id, author_id, author_name, author_coren, author_coren_state, content, reason)
+         SELECT owner_id, record.id, author_id, name, coren, coren_state, 'Texto', 'Motivo'
+         FROM record JOIN users ON users.id = record.author_id`,
         [ownerId, patientId],
       ),
     ).rejects.toThrow("record_versions_first_without_reason");
