@@ -1,5 +1,5 @@
 # Manter a versão do Node igual à do .nvmrc
-ARG NODE_VERSION=22
+ARG NODE_VERSION=24
 
 FROM node:${NODE_VERSION}-alpine AS builder
 

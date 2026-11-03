@@ -54,7 +54,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 - [x] Recuperação de senha (token por e-mail, no mesmo modelo do token de verificação).
 - [x] COREN e UF no cadastro da enfermeira.
 - [x] Infraestrutura do log de auditoria. Falta, no deploy, dar ao usuário do banco da API só `insert` e `find` na coleção `auditlogs`.
-- [ ] Conferir a região do cluster no Atlas; migrar para o Brasil se necessário.
+- [x] Conferir a região do cluster no Atlas; migrar para o Brasil se necessário.
 - [x] Ajustar `engines` do `package.json` para `^22.14.0 || >=24.10.0` (exigência do semantic-release) e atualizar o Node local.
 
 ### Fase 1 — Pacientes
