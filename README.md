@@ -15,7 +15,7 @@ Copie `.env.example` para `.env` e preencha:
 - `DATABASE_URL` — conexão da API, com o usuário `care_track_app` (sem DELETE e sujeito às políticas de RLS)
 - `DATABASE_MIGRATION_URL` — conexão do dono do schema, usada só pelo `npm run db:migrate`
 - `CORS_ORIGIN` — origem permitida pelo CORS
-- `EMAIL_HOST` — URL base usada no link de confirmação de e-mail
+- `EMAIL_VERIFICATION_URL` — URL da página do front-end que confirma o e-mail; o link enviado é `EMAIL_VERIFICATION_URL?token=...`
 - `PASSWORD_RESET_HOST` — URL base usada no link de redefinição de senha
 - `RESEND_API_KEY` — chave da API do Resend
 - `RESEND_EMAIL_ORIGIN` — remetente dos e-mails transacionais

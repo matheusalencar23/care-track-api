@@ -9,7 +9,7 @@ import { messages } from "../../shared/messages.js";
 import { sendConfirmationEmail } from "../../services/email/email.service.js";
 import * as emailVerificationTokenService from "../email/emailVerificationToken.service.js";
 import { withTransaction } from "../../db/db.js";
-import { EMAIL_HOST } from "../../config/secrets.js";
+import { EMAIL_VERIFICATION_URL } from "../../config/secrets.js";
 import { AppLogger } from "../../shared/appLogger.js";
 import { errorDetails } from "../../shared/errorDetails.js";
 import type { SignupData } from "./user.schema.js";
@@ -78,7 +78,7 @@ const createValidationEmail = async (
     await sendConfirmationEmail(
       email,
       name,
-      `${EMAIL_HOST}?token=${emailVerificationToken}`,
+      `${EMAIL_VERIFICATION_URL}?token=${emailVerificationToken}`,
     );
   } catch (err) {
     AppLogger.error("Error sending confirmation email", {
