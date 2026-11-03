@@ -54,7 +54,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.4",
     "pino": "^10.3.1",
-    "resend": "^6.24.0",
+    "resend": "^6.37.0",
     "zod": "^4.4.3"
   },
   "engines": {
