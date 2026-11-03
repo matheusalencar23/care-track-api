@@ -1,5 +1,6 @@
 import mongoose, { Document } from "mongoose";
 import { normalizeForSearch } from "../../utils/string.utils.js";
+import { nurseScopePlugin } from "../../db/nurseScope.plugin.js";
 
 export interface IPatient extends Document {
   nurseId: mongoose.Types.ObjectId;
@@ -20,6 +21,7 @@ const patientSchema = new mongoose.Schema<IPatient>(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      immutable: true,
     },
     name: {
       type: String,
@@ -53,6 +55,8 @@ const patientSchema = new mongoose.Schema<IPatient>(
   },
   { timestamps: true },
 );
+
+patientSchema.plugin(nurseScopePlugin);
 
 patientSchema.index({ nurseId: 1, archivedAt: 1, searchName: 1 });
 patientSchema.index(

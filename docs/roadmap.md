@@ -61,7 +61,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 
 - [x] Cadastro, listagem paginada com busca, consulta e edição dos dados cadastrais.
 - [x] Arquivar em vez de excluir.
-- [ ] Todas as consultas filtradas por `nurseId`.
+- [x] Todas as consultas filtradas por `nurseId`.
 - [ ] Registro de consentimento do paciente (ex.: uso de imagem).
 - [ ] Auditoria de cada acesso.
 
