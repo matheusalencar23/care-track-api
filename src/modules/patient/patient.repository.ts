@@ -1,4 +1,4 @@
-import type { QueryFilter } from "mongoose";
+import type { HydratedDocument, QueryFilter } from "mongoose";
 import Patient, { type IPatient } from "./patient.model.js";
 import type { ListPatientsQuery, PatientData } from "./patient.schema.js";
 import { escapeRegex, normalizeForSearch } from "../../utils/string.utils.js";
@@ -25,9 +25,12 @@ export const findByIdForNurse = async (id: string, nurseId: string) => {
 
 export const listForNurse = async (
   nurseId: string,
-  { search, page, limit }: ListPatientsQuery,
+  { search, status, page, limit }: ListPatientsQuery,
 ) => {
-  const filter: QueryFilter<IPatient> = { nurseId };
+  const filter: QueryFilter<IPatient> = {
+    nurseId,
+    archivedAt: status === "archived" ? { $ne: null } : null,
+  };
 
   if (search) {
     const conditions: QueryFilter<IPatient>[] = [
@@ -53,18 +56,21 @@ export const listForNurse = async (
   return { patients, total };
 };
 
-export const updateForNurse = async (
-  id: string,
-  nurseId: string,
+export const update = async (
+  patient: HydratedDocument<IPatient>,
   data: PatientData,
 ) => {
-  const patient = await Patient.findOne({ _id: id, nurseId });
-
-  if (!patient) {
-    return null;
-  }
-
   patient.set(toFields(data));
+  await patient.save();
+
+  return patient;
+};
+
+export const setArchivedAt = async (
+  patient: HydratedDocument<IPatient>,
+  archivedAt: Date | null,
+) => {
+  patient.archivedAt = archivedAt;
   await patient.save();
 
   return patient;

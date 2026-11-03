@@ -98,3 +98,51 @@ export const update = async (
     return next(err);
   }
 };
+
+export const archive = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  AppLogger.info("Archiving patient...");
+
+  try {
+    if (!req.user) {
+      throw new UnauthorizedException(messages.UNAUTHORIZED);
+    }
+
+    const patient = await patientService.archivePatient(
+      req.user.id,
+      req.params["id"] as string,
+    );
+
+    return res.json(patient);
+  } catch (err) {
+    AppLogger.error("Error archiving patient");
+    return next(err);
+  }
+};
+
+export const unarchive = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  AppLogger.info("Unarchiving patient...");
+
+  try {
+    if (!req.user) {
+      throw new UnauthorizedException(messages.UNAUTHORIZED);
+    }
+
+    const patient = await patientService.unarchivePatient(
+      req.user.id,
+      req.params["id"] as string,
+    );
+
+    return res.json(patient);
+  } catch (err) {
+    AppLogger.error("Error unarchiving patient");
+    return next(err);
+  }
+};

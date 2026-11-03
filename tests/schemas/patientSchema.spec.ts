@@ -86,12 +86,23 @@ describe("CreatePatientSchema", () => {
 });
 
 describe("ListPatientsQuerySchema", () => {
-  it("should apply the default page and limit", () => {
-    expect(ListPatientsQuerySchema.parse({})).toEqual({ page: 1, limit: 20 });
+  it("should apply the default status, page and limit", () => {
+    expect(ListPatientsQuerySchema.parse({})).toEqual({
+      status: "active",
+      page: 1,
+      limit: 20,
+    });
+  });
+
+  it("should accept the archived status", () => {
+    expect(ListPatientsQuerySchema.parse({ status: "archived" })).toMatchObject(
+      { status: "archived" },
+    );
   });
 
   it("should coerce page and limit from the query string", () => {
     expect(ListPatientsQuerySchema.parse({ page: "3", limit: "50" })).toEqual({
+      status: "active",
       page: 3,
       limit: 50,
     });
@@ -103,6 +114,7 @@ describe("ListPatientsQuerySchema", () => {
     { page: "abc" },
     { limit: "0" },
     { limit: "101" },
+    { status: "deleted" },
   ])("should reject %o", (query) => {
     expect(ListPatientsQuerySchema.safeParse(query).success).toBe(false);
   });

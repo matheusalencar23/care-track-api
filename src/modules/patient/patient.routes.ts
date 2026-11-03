@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import * as patientController from "./patient.controller.js";
 import {
+  ArchivePatientSchema,
   CreatePatientSchema,
   GetPatientSchema,
   ListPatientsSchema,
@@ -36,6 +37,18 @@ routes.put(
   "/:id",
   schemaValidationMiddleware(UpdatePatientSchema),
   patientController.update,
+);
+
+routes.post(
+  "/:id/archive",
+  schemaValidationMiddleware(ArchivePatientSchema),
+  patientController.archive,
+);
+
+routes.post(
+  "/:id/unarchive",
+  schemaValidationMiddleware(ArchivePatientSchema),
+  patientController.unarchive,
 );
 
 export default routes;

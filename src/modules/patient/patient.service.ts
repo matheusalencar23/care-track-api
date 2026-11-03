@@ -3,7 +3,10 @@ import * as patientRepository from "./patient.repository.js";
 import * as auditLogService from "../audit/auditLog.service.js";
 import type { IPatient } from "./patient.model.js";
 import type { ListPatientsQuery, PatientData } from "./patient.schema.js";
-import { NotFoundException } from "../../shared/exceptions/index.js";
+import {
+  ConflictException,
+  NotFoundException,
+} from "../../shared/exceptions/index.js";
 import { messages } from "../../shared/messages.js";
 import { AppLogger } from "../../shared/appLogger.js";
 
@@ -14,9 +17,20 @@ export const toPatientResponse = (patient: HydratedDocument<IPatient>) => ({
   cpf: patient.cpf,
   cns: patient.cns,
   phone: patient.phone,
+  archivedAt: patient.archivedAt,
   createdAt: patient.createdAt,
   updatedAt: patient.updatedAt,
 });
+
+const findPatientOrThrow = async (nurseId: string, patientId: string) => {
+  const patient = await patientRepository.findByIdForNurse(patientId, nurseId);
+
+  if (!patient) {
+    throw new NotFoundException(messages.PATIENT_NOT_FOUND);
+  }
+
+  return patient;
+};
 
 export const createPatient = async (nurseId: string, data: PatientData) => {
   const patient = await patientRepository.save(nurseId, data);
@@ -58,11 +72,7 @@ export const listPatients = async (
 };
 
 export const getPatient = async (nurseId: string, patientId: string) => {
-  const patient = await patientRepository.findByIdForNurse(patientId, nurseId);
-
-  if (!patient) {
-    throw new NotFoundException(messages.PATIENT_NOT_FOUND);
-  }
+  const patient = await findPatientOrThrow(nurseId, patientId);
 
   await auditLogService.record({
     userId: nurseId,
@@ -80,15 +90,13 @@ export const updatePatient = async (
   patientId: string,
   data: PatientData,
 ) => {
-  const patient = await patientRepository.updateForNurse(
-    patientId,
-    nurseId,
-    data,
-  );
+  const patient = await findPatientOrThrow(nurseId, patientId);
 
-  if (!patient) {
-    throw new NotFoundException(messages.PATIENT_NOT_FOUND);
+  if (patient.archivedAt) {
+    throw new ConflictException(messages.PATIENT_ARCHIVED);
   }
+
+  await patientRepository.update(patient, data);
 
   await auditLogService.record({
     userId: nurseId,
@@ -98,6 +106,48 @@ export const updatePatient = async (
     patientId: patient.id,
   });
   AppLogger.info("Patient updated", { patientId: patient.id });
+
+  return toPatientResponse(patient);
+};
+
+export const archivePatient = async (nurseId: string, patientId: string) => {
+  const patient = await findPatientOrThrow(nurseId, patientId);
+
+  if (patient.archivedAt) {
+    throw new ConflictException(messages.PATIENT_ALREADY_ARCHIVED);
+  }
+
+  await patientRepository.setArchivedAt(patient, new Date());
+
+  await auditLogService.record({
+    userId: nurseId,
+    action: "patient.archive",
+    resourceType: "patient",
+    resourceId: patient.id,
+    patientId: patient.id,
+  });
+  AppLogger.info("Patient archived", { patientId: patient.id });
+
+  return toPatientResponse(patient);
+};
+
+export const unarchivePatient = async (nurseId: string, patientId: string) => {
+  const patient = await findPatientOrThrow(nurseId, patientId);
+
+  if (!patient.archivedAt) {
+    throw new ConflictException(messages.PATIENT_NOT_ARCHIVED);
+  }
+
+  await patientRepository.setArchivedAt(patient, null);
+
+  await auditLogService.record({
+    userId: nurseId,
+    action: "patient.unarchive",
+    resourceType: "patient",
+    resourceId: patient.id,
+    patientId: patient.id,
+  });
+  AppLogger.info("Patient unarchived", { patientId: patient.id });
 
   return toPatientResponse(patient);
 };

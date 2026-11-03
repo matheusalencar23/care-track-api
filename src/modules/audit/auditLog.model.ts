@@ -8,6 +8,8 @@ export const AUDIT_ACTIONS = [
   "patient.list",
   "patient.read",
   "patient.update",
+  "patient.archive",
+  "patient.unarchive",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

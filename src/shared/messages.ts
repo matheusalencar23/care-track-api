@@ -6,6 +6,13 @@ export const messages = {
 
   PATIENT_NOT_FOUND: "Paciente não encontrado!",
 
+  PATIENT_ARCHIVED:
+    "Este paciente está arquivado. Reative-o para alterar os dados.",
+
+  PATIENT_ALREADY_ARCHIVED: "Este paciente já está arquivado.",
+
+  PATIENT_NOT_ARCHIVED: "Este paciente não está arquivado.",
+
   INVALID_LINK_TOKEN: "Link inválido ou expirado!",
 
   EMAIL_ALREADY_VERIFIED: "Este e-mail já foi confirmado!",

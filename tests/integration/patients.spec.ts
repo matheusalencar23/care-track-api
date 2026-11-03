@@ -41,6 +41,7 @@ describe("patients", () => {
     expect(created.body).toEqual({
       id: expect.any(String),
       ...patientData,
+      archivedAt: null,
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
     });
@@ -193,6 +194,162 @@ describe("patients", () => {
       const { agent } = await signedInAgent();
 
       await agent.get(`${API}/patients`).query({ limit: 101 }).expect(422);
+    });
+  });
+
+  describe("archiving", () => {
+    it("should archive and unarchive a patient", async () => {
+      const { agent } = await signedInAgent();
+      const created = await agent
+        .post(`${API}/patients`)
+        .send(patientData)
+        .expect(201);
+      const id = created.body.id;
+
+      const archived = await agent
+        .post(`${API}/patients/${id}/archive`)
+        .expect(200);
+      expect(archived.body.archivedAt).toEqual(expect.any(String));
+
+      const read = await agent.get(`${API}/patients/${id}`).expect(200);
+      expect(read.body.archivedAt).toBe(archived.body.archivedAt);
+
+      const unarchived = await agent
+        .post(`${API}/patients/${id}/unarchive`)
+        .expect(200);
+      expect(unarchived.body.archivedAt).toBeNull();
+    });
+
+    it("should list archived patients only when asked", async () => {
+      const { agent } = await signedInAgent();
+      const created = await agent
+        .post(`${API}/patients`)
+        .send(patientData)
+        .expect(201);
+      await agent
+        .post(`${API}/patients`)
+        .send({ name: "Ana", birthDate: "1980-01-01" })
+        .expect(201);
+      await agent
+        .post(`${API}/patients/${created.body.id}/archive`)
+        .expect(200);
+
+      const active = await agent.get(`${API}/patients`).expect(200);
+      expect(active.body.items.map((p: { name: string }) => p.name)).toEqual([
+        "Ana",
+      ]);
+
+      const archived = await agent
+        .get(`${API}/patients`)
+        .query({ status: "archived", search: patientData.cpf })
+        .expect(200);
+      expect(archived.body.items.map((p: { id: string }) => p.id)).toEqual([
+        created.body.id,
+      ]);
+    });
+
+    it("should not update an archived patient", async () => {
+      const { agent } = await signedInAgent();
+      const created = await agent
+        .post(`${API}/patients`)
+        .send(patientData)
+        .expect(201);
+      await agent
+        .post(`${API}/patients/${created.body.id}/archive`)
+        .expect(200);
+
+      const response = await agent
+        .put(`${API}/patients/${created.body.id}`)
+        .send({ name: "Outro Nome", birthDate: "1950-03-15" })
+        .expect(409);
+      expect(response.body.message).toBe(messages.PATIENT_ARCHIVED);
+
+      const stored = await agent
+        .get(`${API}/patients/${created.body.id}`)
+        .expect(200);
+      expect(stored.body.name).toBe(patientData.name);
+    });
+
+    it("should reject archiving twice and unarchiving an active patient", async () => {
+      const { agent } = await signedInAgent();
+      const created = await agent
+        .post(`${API}/patients`)
+        .send(patientData)
+        .expect(201);
+      const id = created.body.id;
+
+      await agent.post(`${API}/patients/${id}/unarchive`).expect(409);
+      await agent.post(`${API}/patients/${id}/archive`).expect(200);
+      await agent.post(`${API}/patients/${id}/archive`).expect(409);
+    });
+
+    it("should keep the CPF taken while the patient is archived", async () => {
+      const { agent } = await signedInAgent();
+      const created = await agent
+        .post(`${API}/patients`)
+        .send(patientData)
+        .expect(201);
+      await agent
+        .post(`${API}/patients/${created.body.id}/archive`)
+        .expect(200);
+
+      await agent.post(`${API}/patients`).send(patientData).expect(409);
+    });
+
+    it("should not let a nurse archive or unarchive another nurse's patient", async () => {
+      const { agent: owner } = await signedInAgent();
+      const { agent: other } = await signedInAgent({
+        email: "ana@example.com",
+      });
+      const created = await owner
+        .post(`${API}/patients`)
+        .send(patientData)
+        .expect(201);
+      const id = created.body.id;
+
+      await other.post(`${API}/patients/${id}/archive`).expect(404);
+      const stillActive = await owner.get(`${API}/patients/${id}`).expect(200);
+      expect(stillActive.body.archivedAt).toBeNull();
+
+      await owner.post(`${API}/patients/${id}/archive`).expect(200);
+      await other.post(`${API}/patients/${id}/unarchive`).expect(404);
+
+      const archivedForOther = await other
+        .get(`${API}/patients`)
+        .query({ status: "archived" })
+        .expect(200);
+      expect(archivedForOther.body.total).toBe(0);
+    });
+
+    it("should record archive and unarchive in the audit log", async () => {
+      const { user, agent } = await signedInAgent();
+      const created = await agent
+        .post(`${API}/patients`)
+        .send(patientData)
+        .expect(201);
+      const id = created.body.id;
+
+      await agent.post(`${API}/patients/${id}/archive`).expect(200);
+      await agent.post(`${API}/patients/${id}/unarchive`).expect(200);
+
+      const logs = await AuditLog.find({
+        action: { $in: ["patient.archive", "patient.unarchive"] },
+      })
+        .sort({ createdAt: 1, _id: 1 })
+        .lean();
+
+      expect(logs).toMatchObject([
+        {
+          action: "patient.archive",
+          userId: user._id,
+          patientId: new mongoose.Types.ObjectId(id),
+        },
+        {
+          action: "patient.unarchive",
+          userId: user._id,
+          patientId: new mongoose.Types.ObjectId(id),
+        },
+      ]);
     });
   });
 

@@ -41,6 +41,7 @@ export const ListPatientsQuerySchema = z.object({
     .trim()
     .max(100, "A busca deve ter no máximo 100 caracteres")
     .optional(),
+  status: z.enum(["active", "archived"], "Status inválido").default("active"),
   page: z.coerce
     .number("Página inválida")
     .int("Página inválida")
@@ -65,6 +66,10 @@ export const ListPatientsSchema = z.object({
 });
 
 export const GetPatientSchema = z.object({
+  params: patientParamsSchema,
+});
+
+export const ArchivePatientSchema = z.object({
   params: patientParamsSchema,
 });
 

@@ -60,21 +60,23 @@ Commits seguem o padrão Conventional Commits, validado pelo commitlint — ver 
 
 Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um cookie httpOnly `token` (JWT válido por 1h), gravado no signin; não há header `Authorization`.
 
-| Método | Rota                            | Descrição                             | Autenticado | Rate limit       |
-| ------ | ------------------------------- | ------------------------------------- | ----------- | ---------------- |
-| POST   | `/api/v1/users/signup`          | Cria uma conta                        | não         | 100/h            |
-| GET    | `/api/v1/users/validate?token=` | Confirma o e-mail                     | não         | 100/h            |
-| POST   | `/api/v1/users/resend`          | Reenvia o e-mail de confirmação       | não         | 100/h e 5/15min  |
-| POST   | `/api/v1/auth/signin`           | Login, grava o cookie de autenticação | não         | 100/h e 10/15min |
-| POST   | `/api/v1/auth/forgot-password`  | Envia o link de redefinição de senha  | não         | 100/h e 5/15min  |
-| POST   | `/api/v1/auth/reset-password`   | Define a nova senha a partir do token | não         | 100/h e 10/15min |
-| POST   | `/api/v1/auth/signout`          | Logout, remove o cookie               | sim         | 100/h            |
-| GET    | `/api/v1/auth/me`               | Retorna o usuário autenticado         | sim         | 100/h            |
-| POST   | `/api/v1/patients`              | Cadastra um paciente                  | sim         | 100/h            |
-| GET    | `/api/v1/patients`              | Lista pacientes (paginada, com busca) | sim         | 100/h            |
-| GET    | `/api/v1/patients/:id`          | Consulta um paciente                  | sim         | 100/h            |
-| PUT    | `/api/v1/patients/:id`          | Edita os dados cadastrais             | sim         | 100/h            |
-| GET    | `/api/v1/health`                | Health check (API, banco e versão)    | não         | —                |
+| Método | Rota                             | Descrição                             | Autenticado | Rate limit       |
+| ------ | -------------------------------- | ------------------------------------- | ----------- | ---------------- |
+| POST   | `/api/v1/users/signup`           | Cria uma conta                        | não         | 100/h            |
+| GET    | `/api/v1/users/validate?token=`  | Confirma o e-mail                     | não         | 100/h            |
+| POST   | `/api/v1/users/resend`           | Reenvia o e-mail de confirmação       | não         | 100/h e 5/15min  |
+| POST   | `/api/v1/auth/signin`            | Login, grava o cookie de autenticação | não         | 100/h e 10/15min |
+| POST   | `/api/v1/auth/forgot-password`   | Envia o link de redefinição de senha  | não         | 100/h e 5/15min  |
+| POST   | `/api/v1/auth/reset-password`    | Define a nova senha a partir do token | não         | 100/h e 10/15min |
+| POST   | `/api/v1/auth/signout`           | Logout, remove o cookie               | sim         | 100/h            |
+| GET    | `/api/v1/auth/me`                | Retorna o usuário autenticado         | sim         | 100/h            |
+| POST   | `/api/v1/patients`               | Cadastra um paciente                  | sim         | 100/h            |
+| GET    | `/api/v1/patients`               | Lista pacientes (paginada, com busca) | sim         | 100/h            |
+| GET    | `/api/v1/patients/:id`           | Consulta um paciente                  | sim         | 100/h            |
+| PUT    | `/api/v1/patients/:id`           | Edita os dados cadastrais             | sim         | 100/h            |
+| POST   | `/api/v1/patients/:id/archive`   | Arquiva um paciente                   | sim         | 100/h            |
+| POST   | `/api/v1/patients/:id/unarchive` | Reativa um paciente arquivado         | sim         | 100/h            |
+| GET    | `/api/v1/health`                 | Health check (API, banco e versão)    | não         | —                |
 
 Os limites são por IP e ficam desativados com `NODE_ENV=development`. O login só é aceito depois que o e-mail for confirmado. O `/users/resend` responde 200 mesmo para e-mails não cadastrados (exceto quando estoura o limite por IP, que retorna 429) e só envia um novo e-mail se o anterior tiver mais de 60 segundos.
 
@@ -82,7 +84,7 @@ O `signup` recebe `{ name, email, password, coren, corenState }`: `coren` é o n
 
 Recuperação de senha: o `/auth/forgot-password` segue as mesmas regras do `/users/resend` (sempre 200, intervalo de 60 segundos) e envia um link `PASSWORD_RESET_HOST?token=...` válido por 30 minutos. O front-end envia esse token com a nova senha (`{ token, password }`) ao `/auth/reset-password`. A troca invalida todos os links de redefinição pendentes e todas as sessões abertas antes dela; se o e-mail ainda não tinha sido confirmado, passa a constar como confirmado (o link chegou por ele).
 
-Pacientes: cada paciente pertence à enfermeira que o cadastrou, e as rotas só enxergam os pacientes da enfermeira autenticada (o de outra responde 404). O `POST` e o `PUT` recebem `{ name, birthDate, cpf?, cns?, phone? }`: `birthDate` no formato `AAAA-MM-DD`; `cpf` (11 dígitos, com dígitos verificadores), `cns` (Cartão SUS, 15 dígitos) e `phone` (DDD + número, 10 ou 11 dígitos) são opcionais e só com números. O `PUT` substitui os dados cadastrais: um campo opcional omitido é apagado. CPF e Cartão SUS não se repetem entre os pacientes de uma mesma enfermeira (409). A listagem aceita `?search=&page=&limit=` (padrão `page=1`, `limit=20`, máximo 100), ordena por nome e responde `{ items, page, limit, total, totalPages }`; a busca ignora acentos e maiúsculas e, se tiver só números (pontuação é ignorada), procura também pelo CPF ou Cartão SUS exatos. Todo acesso a paciente é registrado no log de auditoria.
+Pacientes: cada paciente pertence à enfermeira que o cadastrou, e as rotas só enxergam os pacientes da enfermeira autenticada (o de outra responde 404). O `POST` e o `PUT` recebem `{ name, birthDate, cpf?, cns?, phone? }`: `birthDate` no formato `AAAA-MM-DD`; `cpf` (11 dígitos, com dígitos verificadores), `cns` (Cartão SUS, 15 dígitos) e `phone` (DDD + número, 10 ou 11 dígitos) são opcionais e só com números. O `PUT` substitui os dados cadastrais: um campo opcional omitido é apagado. CPF e Cartão SUS não se repetem entre os pacientes de uma mesma enfermeira (409). A listagem aceita `?search=&status=&page=&limit=` (padrão `status=active`, `page=1`, `limit=20`, máximo 100), ordena por nome e responde `{ items, page, limit, total, totalPages }`; a busca ignora acentos e maiúsculas e, se tiver só números (pontuação é ignorada), procura também pelo CPF ou Cartão SUS exatos. Pacientes não são excluídos, só arquivados: o arquivado sai da listagem padrão (aparece com `status=archived`), continua consultável pelo `GET /patients/:id` (com `archivedAt` preenchido) e não pode ser editado (409) até ser reativado. Arquivar um paciente já arquivado, ou reativar um ativo, também responde 409. O CPF e o Cartão SUS de um paciente arquivado continuam reservados: para voltar a atendê-lo, reative o cadastro. Todo acesso a paciente é registrado no log de auditoria.
 
 ## Deploy
 

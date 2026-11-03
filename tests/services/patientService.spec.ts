@@ -1,20 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  archivePatient,
   createPatient,
   getPatient,
   listPatients,
+  unarchivePatient,
   updatePatient,
 } from "../../src/modules/patient/patient.service.js";
 import * as patientRepository from "../../src/modules/patient/patient.repository.js";
 import * as auditLogService from "../../src/modules/audit/auditLog.service.js";
-import { NotFoundException } from "../../src/shared/exceptions/index.js";
+import {
+  ConflictException,
+  NotFoundException,
+} from "../../src/shared/exceptions/index.js";
+import { messages } from "../../src/shared/messages.js";
 
 vi.mock("../../src/modules/patient/patient.repository.js", () => ({
   save: vi.fn(),
   findByIdForNurse: vi.fn(),
   listForNurse: vi.fn(),
-  updateForNurse: vi.fn(),
+  update: vi.fn(),
+  setArchivedAt: vi.fn(),
 }));
 
 vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
@@ -32,16 +39,20 @@ vi.mock("../../src/shared/appLogger.js", () => ({
 
 const createdAt = new Date("2026-11-02T10:00:00.000Z");
 
-const patient = {
-  id: "patient-1",
-  name: "José da Silva",
-  birthDate: new Date("1950-03-15T00:00:00.000Z"),
-  cpf: "52998224725",
-  cns: null,
-  phone: null,
-  createdAt,
-  updatedAt: createdAt,
-} as unknown as Awaited<ReturnType<typeof patientRepository.save>>;
+const buildPatient = (archivedAt: Date | null = null) =>
+  ({
+    id: "patient-1",
+    name: "José da Silva",
+    birthDate: new Date("1950-03-15T00:00:00.000Z"),
+    cpf: "52998224725",
+    cns: null,
+    phone: null,
+    archivedAt,
+    createdAt,
+    updatedAt: createdAt,
+  }) as unknown as Awaited<ReturnType<typeof patientRepository.save>>;
+
+const patient = buildPatient();
 
 const patientResponse = {
   id: "patient-1",
@@ -50,6 +61,7 @@ const patientResponse = {
   cpf: "52998224725",
   cns: null,
   phone: null,
+  archivedAt: null,
   createdAt,
   updatedAt: createdAt,
 };
@@ -101,7 +113,12 @@ describe("patientService", () => {
         total: 21,
       } as Awaited<ReturnType<typeof patientRepository.listForNurse>>);
 
-      const query = { search: "jose", page: 2, limit: 20 };
+      const query = {
+        search: "jose",
+        status: "active" as const,
+        page: 2,
+        limit: 20,
+      };
 
       await expect(listPatients("nurse-1", query)).resolves.toEqual({
         items: [patientResponse],
@@ -156,15 +173,18 @@ describe("patientService", () => {
 
   describe("updatePatient", () => {
     it("should update the nurse's patient and record the audit", async () => {
-      vi.mocked(patientRepository.updateForNurse).mockResolvedValue(patient);
+      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(patient);
 
       await expect(
         updatePatient("nurse-1", "patient-1", patientData),
       ).resolves.toEqual(patientResponse);
 
-      expect(patientRepository.updateForNurse).toHaveBeenCalledWith(
+      expect(patientRepository.findByIdForNurse).toHaveBeenCalledWith(
         "patient-1",
         "nurse-1",
+      );
+      expect(patientRepository.update).toHaveBeenCalledWith(
+        patient,
         patientData,
       );
       expect(auditLogService.record).toHaveBeenCalledWith({
@@ -177,11 +197,99 @@ describe("patientService", () => {
     });
 
     it("should throw NotFoundException without recording when the patient is not found", async () => {
-      vi.mocked(patientRepository.updateForNurse).mockResolvedValue(null);
+      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(null);
 
       await expect(
         updatePatient("nurse-1", "patient-1", patientData),
       ).rejects.toBeInstanceOf(NotFoundException);
+      expect(patientRepository.update).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it("should throw ConflictException when the patient is archived", async () => {
+      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(
+        buildPatient(createdAt),
+      );
+
+      await expect(
+        updatePatient("nurse-1", "patient-1", patientData),
+      ).rejects.toThrow(messages.PATIENT_ARCHIVED);
+      expect(patientRepository.update).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("archivePatient", () => {
+    it("should archive the nurse's patient and record the audit", async () => {
+      const active = buildPatient();
+      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(active);
+
+      await archivePatient("nurse-1", "patient-1");
+
+      expect(patientRepository.setArchivedAt).toHaveBeenCalledWith(
+        active,
+        expect.any(Date),
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith({
+        userId: "nurse-1",
+        action: "patient.archive",
+        resourceType: "patient",
+        resourceId: "patient-1",
+        patientId: "patient-1",
+      });
+    });
+
+    it("should throw NotFoundException when the patient is not found", async () => {
+      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(null);
+
+      await expect(
+        archivePatient("nurse-1", "patient-1"),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(patientRepository.setArchivedAt).not.toHaveBeenCalled();
+    });
+
+    it("should throw ConflictException when the patient is already archived", async () => {
+      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(
+        buildPatient(createdAt),
+      );
+
+      await expect(archivePatient("nurse-1", "patient-1")).rejects.toThrow(
+        messages.PATIENT_ALREADY_ARCHIVED,
+      );
+      expect(patientRepository.setArchivedAt).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("unarchivePatient", () => {
+    it("should unarchive the nurse's patient and record the audit", async () => {
+      const archived = buildPatient(createdAt);
+      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(archived);
+
+      await unarchivePatient("nurse-1", "patient-1");
+
+      expect(patientRepository.setArchivedAt).toHaveBeenCalledWith(
+        archived,
+        null,
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith({
+        userId: "nurse-1",
+        action: "patient.unarchive",
+        resourceType: "patient",
+        resourceId: "patient-1",
+        patientId: "patient-1",
+      });
+    });
+
+    it("should throw ConflictException when the patient is not archived", async () => {
+      vi.mocked(patientRepository.findByIdForNurse).mockResolvedValue(
+        buildPatient(),
+      );
+
+      await expect(unarchivePatient("nurse-1", "patient-1")).rejects.toThrow(
+        ConflictException,
+      );
+      expect(patientRepository.setArchivedAt).not.toHaveBeenCalled();
       expect(auditLogService.record).not.toHaveBeenCalled();
     });
   });

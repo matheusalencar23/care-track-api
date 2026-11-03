@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  archive,
   create,
   get,
   list,
+  unarchive,
   update,
 } from "../../src/modules/patient/patient.controller.js";
 import {
+  archivePatient,
   createPatient,
   getPatient,
   listPatients,
+  unarchivePatient,
   updatePatient,
 } from "../../src/modules/patient/patient.service.js";
 import { UnauthorizedException } from "../../src/shared/exceptions/index.js";
@@ -20,6 +24,8 @@ import {
 } from "../helpers/expressMock.js";
 
 vi.mock("../../src/modules/patient/patient.service.js", () => ({
+  archivePatient: vi.fn(),
+  unarchivePatient: vi.fn(),
   createPatient: vi.fn(),
   getPatient: vi.fn(),
   listPatients: vi.fn(),
@@ -115,6 +121,7 @@ describe("patientController", () => {
       await list(req, res, next);
 
       expect(listPatients).toHaveBeenCalledWith("nurse-1", {
+        status: "active",
         page: 2,
         limit: 20,
         search: "jose",
@@ -186,6 +193,69 @@ describe("patientController", () => {
 
       expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
       expect(updatePatient).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("archive", () => {
+    it("should archive the patient", async () => {
+      vi.mocked(archivePatient).mockResolvedValue(patient as never);
+      const req = createMockRequest({ user, params: { id: "patient-1" } });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await archive(req, res, next);
+
+      expect(archivePatient).toHaveBeenCalledWith("nurse-1", "patient-1");
+      expect(res.json).toHaveBeenCalledWith(patient);
+    });
+
+    it("should call next with UnauthorizedException when there is no authenticated user", async () => {
+      const req = createMockRequest({ params: { id: "patient-1" } });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await archive(req, res, next);
+
+      expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+      expect(archivePatient).not.toHaveBeenCalled();
+    });
+
+    it("should call next when the service throws", async () => {
+      const error = new Error("Conflict");
+      vi.mocked(archivePatient).mockRejectedValue(error);
+      const req = createMockRequest({ user, params: { id: "patient-1" } });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await archive(req, res, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("unarchive", () => {
+    it("should unarchive the patient", async () => {
+      vi.mocked(unarchivePatient).mockResolvedValue(patient as never);
+      const req = createMockRequest({ user, params: { id: "patient-1" } });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await unarchive(req, res, next);
+
+      expect(unarchivePatient).toHaveBeenCalledWith("nurse-1", "patient-1");
+      expect(res.json).toHaveBeenCalledWith(patient);
+    });
+
+    it("should call next with UnauthorizedException when there is no authenticated user", async () => {
+      const req = createMockRequest({ params: { id: "patient-1" } });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await unarchive(req, res, next);
+
+      expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+      expect(unarchivePatient).not.toHaveBeenCalled();
     });
   });
 });
