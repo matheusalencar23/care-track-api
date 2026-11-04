@@ -131,8 +131,16 @@ describe("authentication flow", () => {
     expect(response.status).toBe(422);
     expect(response.body.errors).toEqual(
       expect.arrayContaining([
-        "O COREN deve conter apenas números",
-        "UF do COREN inválida",
+        {
+          location: "body",
+          path: "coren",
+          message: "O COREN deve conter apenas números",
+        },
+        {
+          location: "body",
+          path: "corenState",
+          message: "UF do COREN inválida",
+        },
       ]),
     );
     expect(await countRows(users)).toBe(0);

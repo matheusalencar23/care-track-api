@@ -43,6 +43,54 @@ describe("schemaValidationMiddleware", () => {
     expect(errorArg).toBeInstanceOf(UnprocessableEntityException);
     expect(
       (errorArg as unknown as UnprocessableEntityException).toJson().errors,
-    ).toEqual(["Email inválido"]);
+    ).toEqual([{ location: "body", path: "email", message: "Email inválido" }]);
+  });
+
+  it("should report where each invalid field is, with nested paths", async () => {
+    const schema = z.object({
+      params: z.object({ id: z.uuid("ID inválido") }),
+      body: z.object({
+        items: z.array(z.object({ name: z.string("Nome inválido") })),
+      }),
+    });
+    const middleware = schemaValidationMiddleware(schema);
+
+    const req = createMockRequest({
+      params: { id: "123" },
+      body: { items: [{ name: 1 }] },
+    });
+    const next = createMockNext();
+
+    await middleware(req, createMockResponse(), next);
+
+    const [errorArg] = vi.mocked(next).mock.calls[0] ?? [];
+    expect(
+      (errorArg as unknown as UnprocessableEntityException).toJson().errors,
+    ).toEqual(
+      expect.arrayContaining([
+        { location: "params", path: "id", message: "ID inválido" },
+        { location: "body", path: "items.0.name", message: "Nome inválido" },
+      ]),
+    );
+  });
+
+  it("should report an error of the whole body with an empty path", async () => {
+    const schema = z.object({
+      body: z.object({}).refine(() => false, "Objeto inválido"),
+    });
+    const middleware = schemaValidationMiddleware(schema);
+
+    const next = createMockNext();
+
+    await middleware(
+      createMockRequest({ body: {} }),
+      createMockResponse(),
+      next,
+    );
+
+    const [errorArg] = vi.mocked(next).mock.calls[0] ?? [];
+    expect(
+      (errorArg as unknown as UnprocessableEntityException).toJson().errors,
+    ).toEqual([{ location: "body", path: "", message: "Objeto inválido" }]);
   });
 });

@@ -110,21 +110,25 @@ describe("consents", () => {
   });
 
   it.each([
-    [{ type: "publication" }],
-    [{ method: "telepathy" }],
-    [{ grantor: "neighbor" }],
-    [{ grantor: "legal_representative" }],
-    [{ representativeName: "Maria" }],
-    [{ collectedAt: "2999-01-01T00:00:00Z" }],
-    [{ collectedAt: "10/01/2026" }],
-  ])("should reject the invalid consent %o", async (overrides) => {
+    [{ type: "publication" }, "type"],
+    [{ method: "telepathy" }, "method"],
+    [{ grantor: "neighbor" }, "grantor"],
+    [{ grantor: "legal_representative" }, "representativeName"],
+    [{ representativeName: "Maria" }, "representativeName"],
+    [{ collectedAt: "2999-01-01T00:00:00Z" }, "collectedAt"],
+    [{ collectedAt: "10/01/2026" }, "collectedAt"],
+  ])("should reject the invalid consent %o", async (overrides, path) => {
     const { agent } = await signedInAgent();
     const patientId = await createPatient(agent);
 
-    await agent
+    const response = await agent
       .post(consentsUrl(patientId))
       .send({ ...imageConsent, ...overrides })
       .expect(422);
+
+    expect(response.body.errors).toEqual([
+      { location: "body", path, message: expect.any(String) },
+    ]);
   });
 
   describe("active consent", () => {

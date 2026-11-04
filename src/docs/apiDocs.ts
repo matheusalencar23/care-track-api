@@ -47,7 +47,16 @@ export const ValidationErrorSchema = component(
   z.object({
     code: codeSchema,
     message: z.string(),
-    errors: z.array(z.string()),
+    errors: z.array(
+      z.object({
+        location: z.enum(["body", "query", "params"]),
+        path: z.string().meta({
+          description:
+            "Caminho do campo dentro de `location`, separado por pontos (ex.: `representativeName`, `items.0.name`). Vazio quando o erro é do objeto inteiro.",
+        }),
+        message: z.string(),
+      }),
+    ),
     timestamp: z.iso.datetime(),
   }),
 );

@@ -79,7 +79,7 @@ Commits seguem o padrão Conventional Commits, validado pelo commitlint — ver 
 
 Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um cookie httpOnly `token` (JWT), gravado no signin; não há header `Authorization`. A sessão é deslizante: cada requisição autenticada a renova, e ela expira após 30 minutos sem requisições ou 12 horas após o login. A expiração vem no header `X-Session-Expires-At` e no campo `sessionExpiresAt` do signin e do `/auth/me`.
 
-Os erros respondem `{ code, message, timestamp }` (o 422 de validação traz também `errors`, com as mensagens de cada campo; o 429 e o 500 vêm só com `code` e `message`). O `code` é um identificador estável (ex.: `PATIENT_ARCHIVED`, `RECORD_VERSION_OUTDATED`), feito para o cliente decidir o que fazer; a `message` é o texto em português para exibir ao usuário e pode mudar. A lista completa de códigos está no schema `Error` do OpenAPI.
+Os erros respondem `{ code, message, timestamp }` (o 422 de validação traz também `errors`, uma lista de `{ location, path, message }` em que `location` é `body`, `query` ou `params` e `path` é o campo, como `representativeName` ou `items.0.name`; o 429 e o 500 vêm só com `code` e `message`). O `code` é um identificador estável (ex.: `PATIENT_ARCHIVED`, `RECORD_VERSION_OUTDATED`), feito para o cliente decidir o que fazer; a `message` é o texto em português para exibir ao usuário e pode mudar. A lista completa de códigos está no schema `Error` do OpenAPI.
 
 | Método | Rota                                              | Descrição                               | Autenticado | Rate limit       |
 | ------ | ------------------------------------------------- | --------------------------------------- | ----------- | ---------------- |
