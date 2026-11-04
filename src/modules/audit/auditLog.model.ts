@@ -16,6 +16,8 @@ export const AUDIT_ACTIONS = [
   "consent.list",
   "consent.revoke",
   "record.create",
+  "record.update",
+  "record.list_versions",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

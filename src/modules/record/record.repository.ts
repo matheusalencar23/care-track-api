@@ -1,3 +1,4 @@
+import { and, desc, eq } from "drizzle-orm";
 import { getDb, single } from "../../db/db.js";
 import { records, recordVersions } from "./record.model.js";
 import type { BrazilianState } from "../../shared/brazilianStates.js";
@@ -8,6 +9,30 @@ export interface RecordAuthor {
   coren: string;
   corenState: BrazilianState;
 }
+
+const insertVersion = async (
+  ownerId: string,
+  recordId: string,
+  author: RecordAuthor,
+  content: string,
+  reason: string | null,
+) => {
+  return single(
+    await getDb()
+      .insert(recordVersions)
+      .values({
+        ownerId,
+        recordId,
+        content,
+        reason,
+        authorId: author.id,
+        authorName: author.name,
+        authorCoren: author.coren,
+        authorCorenState: author.corenState,
+      })
+      .returning(),
+  );
+};
 
 export const save = async (
   ownerId: string,
@@ -22,20 +47,76 @@ export const save = async (
       .returning(),
   );
 
-  const version = single(
-    await getDb()
-      .insert(recordVersions)
-      .values({
-        ownerId,
-        recordId: record.id,
-        content,
-        authorId: author.id,
-        authorName: author.name,
-        authorCoren: author.coren,
-        authorCorenState: author.corenState,
-      })
-      .returning(),
+  const version = await insertVersion(
+    ownerId,
+    record.id,
+    author,
+    content,
+    null,
   );
 
   return { record, version };
+};
+
+export const saveVersion = async (
+  ownerId: string,
+  recordId: string,
+  author: RecordAuthor,
+  content: string,
+  reason: string | null,
+) => {
+  return await insertVersion(ownerId, recordId, author, content, reason);
+};
+
+export const findByIdForPatient = async (
+  id: string,
+  ownerId: string,
+  patientId: string,
+) => {
+  const [record] = await getDb()
+    .select()
+    .from(records)
+    .where(
+      and(
+        eq(records.id, id),
+        eq(records.ownerId, ownerId),
+        eq(records.patientId, patientId),
+      ),
+    )
+    .limit(1);
+
+  if (!record) {
+    return null;
+  }
+
+  const [version] = await getDb()
+    .select()
+    .from(recordVersions)
+    .where(
+      and(
+        eq(recordVersions.recordId, record.id),
+        eq(recordVersions.ownerId, ownerId),
+      ),
+    )
+    .orderBy(desc(recordVersions.version))
+    .limit(1);
+
+  if (!version) {
+    throw new Error("The record has no version");
+  }
+
+  return { record, version };
+};
+
+export const listVersions = async (ownerId: string, recordId: string) => {
+  return await getDb()
+    .select()
+    .from(recordVersions)
+    .where(
+      and(
+        eq(recordVersions.recordId, recordId),
+        eq(recordVersions.ownerId, ownerId),
+      ),
+    )
+    .orderBy(desc(recordVersions.version));
 };

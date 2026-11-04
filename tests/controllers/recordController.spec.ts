@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { create } from "../../src/modules/record/record.controller.js";
-import { createRecord } from "../../src/modules/record/record.service.js";
+import {
+  create,
+  listVersions,
+  update,
+} from "../../src/modules/record/record.controller.js";
+import {
+  createRecord,
+  listRecordVersions,
+  updateRecord,
+} from "../../src/modules/record/record.service.js";
 import { UnauthorizedException } from "../../src/shared/exceptions/index.js";
 import {
   createMockNext,
@@ -11,6 +19,8 @@ import {
 
 vi.mock("../../src/modules/record/record.service.js", () => ({
   createRecord: vi.fn(),
+  updateRecord: vi.fn(),
+  listRecordVersions: vi.fn(),
 }));
 
 vi.mock("../../src/shared/appLogger.js", () => ({
@@ -97,6 +107,121 @@ describe("recordController", () => {
 
       expect(next).toHaveBeenCalledWith(error);
       expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+  describe("update", () => {
+    const author = {
+      id: "owner-1",
+      name: "Maria Silva",
+      coren: "123456",
+      corenState: "SP",
+    };
+
+    it("should edit the record with only the known fields", async () => {
+      vi.mocked(updateRecord).mockResolvedValue(record as never);
+      const req = createMockRequest({
+        user,
+        params: { id: "patient-1", recordId: "record-1" },
+        body: {
+          content: "  Novo texto  ",
+          version: 1,
+          reason: "  Correção  ",
+          authorId: "someone-else",
+        },
+      });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await update(req, res, next);
+
+      expect(updateRecord).toHaveBeenCalledWith(
+        author,
+        "patient-1",
+        "record-1",
+        { content: "Novo texto", version: 1, reason: "Correção" },
+      );
+      expect(res.json).toHaveBeenCalledWith(record);
+    });
+
+    it("should not send a reason when none is given", async () => {
+      vi.mocked(updateRecord).mockResolvedValue(record as never);
+      const req = createMockRequest({
+        user,
+        params: { id: "patient-1", recordId: "record-1" },
+        body: { content: "Novo texto", version: 1 },
+      });
+
+      await update(req, createMockResponse(), createMockNext());
+
+      expect(updateRecord).toHaveBeenCalledWith(
+        author,
+        "patient-1",
+        "record-1",
+        { content: "Novo texto", version: 1 },
+      );
+    });
+
+    it("should call next with UnauthorizedException when there is no authenticated user", async () => {
+      const req = createMockRequest({
+        params: { id: "patient-1", recordId: "record-1" },
+        body: { content: "Novo texto", version: 1 },
+      });
+      const next = createMockNext();
+
+      await update(req, createMockResponse(), next);
+
+      expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+      expect(updateRecord).not.toHaveBeenCalled();
+    });
+
+    it("should call next when the service throws", async () => {
+      const error = new Error("Conflict");
+      vi.mocked(updateRecord).mockRejectedValue(error);
+      const req = createMockRequest({
+        user,
+        params: { id: "patient-1", recordId: "record-1" },
+        body: { content: "Novo texto", version: 1 },
+      });
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      await update(req, res, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("listVersions", () => {
+    it("should list the versions of the record", async () => {
+      const versions = [{ version: 1 }];
+      vi.mocked(listRecordVersions).mockResolvedValue(versions as never);
+      const req = createMockRequest({
+        user,
+        params: { id: "patient-1", recordId: "record-1" },
+      });
+      const res = createMockResponse();
+
+      await listVersions(req, res, createMockNext());
+
+      expect(listRecordVersions).toHaveBeenCalledWith(
+        "owner-1",
+        "patient-1",
+        "record-1",
+      );
+      expect(res.json).toHaveBeenCalledWith(versions);
+    });
+
+    it("should call next with UnauthorizedException when there is no authenticated user", async () => {
+      const req = createMockRequest({
+        params: { id: "patient-1", recordId: "record-1" },
+      });
+      const next = createMockNext();
+
+      await listVersions(req, createMockResponse(), next);
+
+      expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+      expect(listRecordVersions).not.toHaveBeenCalled();
     });
   });
 });

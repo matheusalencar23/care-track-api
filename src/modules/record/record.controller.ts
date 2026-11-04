@@ -4,6 +4,13 @@ import * as recordService from "./record.service.js";
 import { UnauthorizedException } from "../../shared/exceptions/index.js";
 import { messages } from "../../shared/messages.js";
 
+const toAuthor = ({
+  id,
+  name,
+  coren,
+  corenState,
+}: NonNullable<Request["user"]>) => ({ id, name, coren, corenState });
+
 export const create = async (
   req: Request,
   res: Response,
@@ -16,10 +23,8 @@ export const create = async (
       throw new UnauthorizedException(messages.UNAUTHORIZED);
     }
 
-    const { id, name, coren, corenState } = req.user;
-
     const record = await recordService.createRecord(
-      { id, name, coren, corenState },
+      toAuthor(req.user),
       req.params["id"] as string,
       req.body.content.trim(),
     );
@@ -27,6 +32,63 @@ export const create = async (
     return res.status(201).json(record);
   } catch (err) {
     AppLogger.error("Error creating record");
+    return next(err);
+  }
+};
+
+export const update = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  AppLogger.info("Updating record...");
+
+  try {
+    if (!req.user) {
+      throw new UnauthorizedException(messages.UNAUTHORIZED);
+    }
+
+    const { content, version, reason } = req.body;
+
+    const record = await recordService.updateRecord(
+      toAuthor(req.user),
+      req.params["id"] as string,
+      req.params["recordId"] as string,
+      {
+        content: content.trim(),
+        version,
+        ...(reason !== undefined && { reason: reason.trim() }),
+      },
+    );
+
+    return res.json(record);
+  } catch (err) {
+    AppLogger.error("Error updating record");
+    return next(err);
+  }
+};
+
+export const listVersions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  AppLogger.info("Listing record versions...");
+
+  try {
+    if (!req.user) {
+      throw new UnauthorizedException(messages.UNAUTHORIZED);
+    }
+
+    const versions = await recordService.listRecordVersions(
+      req.user.id,
+      req.params["id"] as string,
+      req.params["recordId"] as string,
+    );
+
+    return res.json(versions);
+  } catch (err) {
+    AppLogger.error("Error listing record versions");
     return next(err);
   }
 };

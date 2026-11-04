@@ -11,7 +11,7 @@ import {
 } from "../../src/modules/record/record.model.js";
 import { messages } from "../../src/shared/messages.js";
 import { API, createVerifiedUser, findAuditLogs, userData } from "./helpers.js";
-import { countRows, testDb } from "./database.js";
+import { adminQuery, countRows, testDb } from "./database.js";
 
 type Agent = ReturnType<typeof request.agent>;
 
@@ -40,6 +40,24 @@ const createPatient = async (agent: Agent) => {
 
 const recordsUrl = (patientId: string) =>
   `${API}/patients/${patientId}/records`;
+
+const recordUrl = (patientId: string, recordId: string) =>
+  `${recordsUrl(patientId)}/${recordId}`;
+
+const versionsUrl = (patientId: string, recordId: string) =>
+  `${recordUrl(patientId, recordId)}/versions`;
+
+const createRecord = async (
+  agent: Agent,
+  patientId: string,
+  content = "Curativo realizado",
+) => {
+  const response = await agent
+    .post(recordsUrl(patientId))
+    .send({ content })
+    .expect(201);
+  return response.body.id as string;
+};
 
 describe("records", () => {
   it("should create a record with the author, COREN and server time", async () => {
@@ -205,5 +223,246 @@ describe("records", () => {
     expect(response.body.message).toBe(messages.PATIENT_NOT_FOUND);
     expect(await countRows(records)).toBe(0);
     expect(await countRows(recordVersions)).toBe(0);
+  });
+});
+
+describe("record editing", () => {
+  it("should edit a record by appending a version and keep the previous ones", async () => {
+    const { user, agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const created = await agent
+      .post(recordsUrl(patientId))
+      .send({ content: "Curativo realizado" })
+      .expect(201);
+    const recordId = created.body.id as string;
+
+    const edited = await agent
+      .put(recordUrl(patientId, recordId))
+      .send({
+        content: "  Curativo realizado na região sacral.  ",
+        version: 1,
+        reason: "  Faltou o local do curativo  ",
+      })
+      .expect(200);
+
+    expect(edited.body).toEqual({
+      ...created.body,
+      content: "Curativo realizado na região sacral.",
+      version: 2,
+      editedAt: expect.any(String),
+    });
+
+    const versions = await agent
+      .get(versionsUrl(patientId, recordId))
+      .expect(200);
+    const author = {
+      id: user.id,
+      name: userData.name,
+      coren: userData.coren,
+      corenState: userData.corenState,
+    };
+    expect(versions.body).toEqual([
+      {
+        version: 2,
+        content: "Curativo realizado na região sacral.",
+        reason: "Faltou o local do curativo",
+        author,
+        createdAt: edited.body.editedAt,
+      },
+      {
+        version: 1,
+        content: "Curativo realizado",
+        reason: null,
+        author,
+        createdAt: created.body.createdAt,
+      },
+    ]);
+  });
+
+  it("should accept an edit without a reason", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    await agent
+      .put(recordUrl(patientId, recordId))
+      .send({ content: "Curativo realizado com gaze", version: 1 })
+      .expect(200);
+
+    const [version] = await testDb()
+      .select()
+      .from(recordVersions)
+      .where(eq(recordVersions.version, 2));
+    expect(version?.reason).toBeNull();
+  });
+
+  it("should keep an old record editable", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+    await adminQuery(`
+      BEGIN;
+      SET LOCAL session_replication_role = replica;
+      UPDATE records SET created_at = now() - interval '2 years'
+        WHERE id = '${recordId}';
+      COMMIT;
+    `);
+
+    await agent
+      .put(recordUrl(patientId, recordId))
+      .send({ content: "Curativo realizado com gaze", version: 1 })
+      .expect(200);
+  });
+
+  it("should audit the edit and the listing of versions", async () => {
+    const { user, agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    await agent
+      .put(recordUrl(patientId, recordId))
+      .send({ content: "Curativo realizado com gaze", version: 1 })
+      .expect(200);
+    await agent.get(versionsUrl(patientId, recordId)).expect(200);
+
+    for (const action of ["record.update", "record.list_versions"] as const) {
+      expect(await findAuditLogs(eq(auditLogs.action, action))).toEqual([
+        expect.objectContaining({
+          userId: user.id,
+          resourceType: "record",
+          resourceId: recordId,
+          patientId,
+        }),
+      ]);
+    }
+  });
+
+  it("should reject an edit based on an outdated version", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+    await agent
+      .put(recordUrl(patientId, recordId))
+      .send({ content: "Primeira edição", version: 1 })
+      .expect(200);
+
+    const response = await agent
+      .put(recordUrl(patientId, recordId))
+      .send({ content: "Edição de outra aba", version: 1 })
+      .expect(409);
+    expect(response.body.message).toBe(messages.RECORD_VERSION_OUTDATED);
+    expect(await countRows(recordVersions)).toBe(2);
+  });
+
+  it("should accept only one of two simultaneous edits of the same version", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    const responses = await Promise.all(
+      ["Edição A", "Edição B"].map((content) =>
+        agent.put(recordUrl(patientId, recordId)).send({ content, version: 1 }),
+      ),
+    );
+
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(await countRows(recordVersions)).toBe(2);
+  });
+
+  it("should reject an edit that does not change the content", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    const response = await agent
+      .put(recordUrl(patientId, recordId))
+      .send({ content: " Curativo realizado ", version: 1 })
+      .expect(422);
+    expect(response.body.message).toBe(messages.RECORD_CONTENT_UNCHANGED);
+    expect(await countRows(recordVersions)).toBe(1);
+  });
+
+  it.each([
+    [{ content: "Novo texto" }],
+    [{ content: "Novo texto", version: 0 }],
+    [{ content: "Novo texto", version: "1" }],
+    [{ content: "   ", version: 1 }],
+    [{ content: "Novo texto", version: 1, reason: "   " }],
+    [{ content: "Novo texto", version: 1, reason: "a".repeat(501) }],
+  ])("should reject the invalid edit %o", async (body) => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    await agent.put(recordUrl(patientId, recordId)).send(body).expect(422);
+    expect(await countRows(recordVersions)).toBe(1);
+  });
+
+  it("should return 404 for a record that does not exist or belongs to another patient", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const otherPatientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    for (const url of [
+      recordUrl(patientId, randomUUID()),
+      recordUrl(otherPatientId, recordId),
+    ]) {
+      const edit = await agent
+        .put(url)
+        .send({ content: "Novo texto", version: 1 })
+        .expect(404);
+      expect(edit.body.message).toBe(messages.RECORD_NOT_FOUND);
+
+      const list = await agent.get(`${url}/versions`).expect(404);
+      expect(list.body.message).toBe(messages.RECORD_NOT_FOUND);
+    }
+  });
+
+  it("should not edit a record of an archived patient, but still list its versions", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+    await agent.post(`${API}/patients/${patientId}/archive`).expect(200);
+
+    const response = await agent
+      .put(recordUrl(patientId, recordId))
+      .send({ content: "Novo texto", version: 1 })
+      .expect(409);
+    expect(response.body.message).toBe(messages.PATIENT_ARCHIVED);
+
+    const versions = await agent
+      .get(versionsUrl(patientId, recordId))
+      .expect(200);
+    expect(versions.body).toHaveLength(1);
+  });
+
+  it("should require authentication", async () => {
+    const url = recordUrl(randomUUID(), randomUUID());
+
+    await request(app)
+      .put(url)
+      .send({ content: "Novo texto", version: 1 })
+      .expect(401);
+    await request(app).get(`${url}/versions`).expect(401);
+  });
+
+  it("should not let another nurse edit a record or see its versions", async () => {
+    const { agent: owner } = await signedInAgent();
+    const patientId = await createPatient(owner);
+    const recordId = await createRecord(owner, patientId);
+    const { agent: other } = await signedInAgent({ email: "ana@example.com" });
+
+    const edit = await other
+      .put(recordUrl(patientId, recordId))
+      .send({ content: "Invasão", version: 1 })
+      .expect(404);
+    expect(edit.body.message).toBe(messages.PATIENT_NOT_FOUND);
+
+    const list = await other.get(versionsUrl(patientId, recordId)).expect(404);
+    expect(list.body.message).toBe(messages.RECORD_NOT_FOUND);
+
+    const versions = await testDb().select().from(recordVersions);
+    expect(versions.map((v) => v.content)).toEqual(["Curativo realizado"]);
   });
 });

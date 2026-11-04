@@ -23,6 +23,14 @@ export const messages = {
   CONSENT_REQUIRES_REPRESENTATIVE:
     "O paciente é menor de idade: o consentimento deve ser dado pelo responsável legal.",
 
+  RECORD_NOT_FOUND: "Registro não encontrado!",
+
+  RECORD_VERSION_OUTDATED:
+    "Este registro foi alterado depois que você o abriu. Recarregue-o e tente novamente.",
+
+  RECORD_CONTENT_UNCHANGED:
+    "O conteúdo informado é igual ao da versão atual do registro.",
+
   INVALID_LINK_TOKEN: "Link inválido ou expirado!",
 
   EMAIL_ALREADY_VERIFIED: "Este e-mail já foi confirmado!",

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { CreateRecordSchema } from "../../src/modules/record/record.schema.js";
+import {
+  CreateRecordSchema,
+  ListRecordVersionsSchema,
+  UpdateRecordSchema,
+} from "../../src/modules/record/record.schema.js";
 
 const params = { id: "0195f3a2-7c4e-7b1a-9d2e-3f4a5b6c7d8e" };
 
@@ -40,5 +44,64 @@ describe("CreateRecordSchema", () => {
     expect(createErrors({ content: "Texto" }, { id: "123" })).toEqual([
       "ID de paciente inválido",
     ]);
+  });
+});
+
+const recordParams = {
+  ...params,
+  recordId: "0195f3a2-7c4e-7b1a-9d2e-3f4a5b6c7d8f",
+};
+
+const updateErrors = (body: unknown, overrides: object = {}) => {
+  const result = UpdateRecordSchema.safeParse({
+    params: { ...recordParams, ...overrides },
+    body,
+  });
+  return result.success ? [] : result.error.issues.map((i) => i.message);
+};
+
+describe("UpdateRecordSchema", () => {
+  it("should accept an edit with or without a reason", () => {
+    expect(updateErrors({ content: "Novo texto", version: 1 })).toEqual([]);
+    expect(
+      updateErrors({ content: "Novo texto", version: 2, reason: "Correção" }),
+    ).toEqual([]);
+  });
+
+  it.each([
+    [{ content: "Novo texto" }, "Versão do registro inválida"],
+    [{ content: "Novo texto", version: "1" }, "Versão do registro inválida"],
+    [{ content: "Novo texto", version: 0 }, "Versão do registro inválida"],
+    [{ content: "Novo texto", version: 1.5 }, "Versão do registro inválida"],
+    [{ content: " ", version: 1 }, "O conteúdo do registro é obrigatório"],
+    [
+      { content: "Novo texto", version: 1, reason: "  " },
+      "O motivo não pode ficar em branco",
+    ],
+    [
+      { content: "Novo texto", version: 1, reason: "a".repeat(501) },
+      "O motivo deve ter no máximo 500 caracteres",
+    ],
+  ])("should reject the body %o", (body, message) => {
+    expect(updateErrors(body)).toEqual([message]);
+  });
+
+  it("should reject an invalid record id", () => {
+    expect(
+      updateErrors({ content: "Novo texto", version: 1 }, { recordId: "1" }),
+    ).toEqual(["ID de registro inválido"]);
+  });
+});
+
+describe("ListRecordVersionsSchema", () => {
+  it("should validate the patient and record ids", () => {
+    expect(
+      ListRecordVersionsSchema.safeParse({ params: recordParams }).success,
+    ).toBe(true);
+    expect(
+      ListRecordVersionsSchema.safeParse({
+        params: { ...recordParams, recordId: "1" },
+      }).success,
+    ).toBe(false);
   });
 });

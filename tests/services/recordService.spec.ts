@@ -1,18 +1,27 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createRecord } from "../../src/modules/record/record.service.js";
+import {
+  createRecord,
+  listRecordVersions,
+  updateRecord,
+} from "../../src/modules/record/record.service.js";
 import * as recordRepository from "../../src/modules/record/record.repository.js";
 import * as patientService from "../../src/modules/patient/patient.service.js";
 import * as auditLogService from "../../src/modules/audit/auditLog.service.js";
 import {
   ConflictException,
   NotFoundException,
+  UnprocessableEntityException,
 } from "../../src/shared/exceptions/index.js";
+import { messages } from "../../src/shared/messages.js";
 import { withOwnerScope } from "../../src/db/db.js";
 
 vi.mock("../../src/modules/record/record.repository.js", () => ({
   save: vi.fn(),
+  saveVersion: vi.fn(),
+  findByIdForPatient: vi.fn(),
+  listVersions: vi.fn(),
 }));
 
 vi.mock("../../src/modules/patient/patient.service.js", () => ({
@@ -154,6 +163,177 @@ describe("recordService", () => {
       await expect(
         createRecord(author, patientId, "Paciente estável"),
       ).rejects.toThrow("audit failed");
+    });
+  });
+  describe("updateRecord", () => {
+    const editedAt = new Date("2026-11-04T08:00:00.000Z");
+    const edit = { content: "Paciente estável, sem queixas", version: 1 };
+
+    beforeEach(() => {
+      vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue(
+        buildSaved(),
+      );
+      vi.mocked(recordRepository.saveVersion).mockResolvedValue({
+        ...buildSaved(2, editedAt).version,
+        content: edit.content,
+        reason: "Complemento",
+      });
+    });
+
+    it("should append a version in the owner scope and record the audit", async () => {
+      const record = await updateRecord(author, patientId, "record-1", {
+        ...edit,
+        reason: "Complemento",
+      });
+
+      expect(record).toMatchObject({
+        id: "record-1",
+        content: edit.content,
+        version: 2,
+        createdAt,
+        editedAt,
+      });
+      expect(withOwnerScope).toHaveBeenCalledWith(
+        "owner-1",
+        expect.any(Function),
+      );
+      expect(patientService.assertPatientIsActive).toHaveBeenCalledWith(
+        "owner-1",
+        patientId,
+      );
+      expect(recordRepository.findByIdForPatient).toHaveBeenCalledWith(
+        "record-1",
+        "owner-1",
+        patientId,
+      );
+      expect(recordRepository.saveVersion).toHaveBeenCalledWith(
+        "owner-1",
+        "record-1",
+        author,
+        edit.content,
+        "Complemento",
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith({
+        userId: "owner-1",
+        action: "record.update",
+        resourceType: "record",
+        resourceId: "record-1",
+        patientId,
+      });
+    });
+
+    it("should save a version without reason when none is given", async () => {
+      await updateRecord(author, patientId, "record-1", edit);
+
+      expect(recordRepository.saveVersion).toHaveBeenCalledWith(
+        "owner-1",
+        "record-1",
+        author,
+        edit.content,
+        null,
+      );
+    });
+
+    it("should not edit when the patient is not active", async () => {
+      vi.mocked(patientService.assertPatientIsActive).mockRejectedValueOnce(
+        new ConflictException("Paciente arquivado"),
+      );
+
+      await expect(
+        updateRecord(author, patientId, "record-1", edit),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(recordRepository.saveVersion).not.toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException when the record is not found", async () => {
+      vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue(null);
+
+      const promise = updateRecord(author, patientId, "record-1", edit);
+
+      await expect(promise).rejects.toBeInstanceOf(NotFoundException);
+      await expect(promise).rejects.toThrow(messages.RECORD_NOT_FOUND);
+      expect(recordRepository.saveVersion).not.toHaveBeenCalled();
+    });
+
+    it("should throw ConflictException when the edit is based on an outdated version", async () => {
+      vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue(
+        buildSaved(3),
+      );
+
+      const promise = updateRecord(author, patientId, "record-1", edit);
+
+      await expect(promise).rejects.toBeInstanceOf(ConflictException);
+      await expect(promise).rejects.toThrow(messages.RECORD_VERSION_OUTDATED);
+      expect(recordRepository.saveVersion).not.toHaveBeenCalled();
+    });
+
+    it("should throw UnprocessableEntityException when the content does not change", async () => {
+      const promise = updateRecord(author, patientId, "record-1", {
+        content: "Paciente estável",
+        version: 1,
+      });
+
+      await expect(promise).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      await expect(promise).rejects.toThrow(messages.RECORD_CONTENT_UNCHANGED);
+      expect(recordRepository.saveVersion).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("listRecordVersions", () => {
+    it("should list the versions newest first and record the audit", async () => {
+      const saved = buildSaved();
+      vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue(saved);
+      vi.mocked(recordRepository.listVersions).mockResolvedValue([
+        saved.version,
+      ]);
+
+      const versions = await listRecordVersions(
+        "owner-1",
+        patientId,
+        "record-1",
+      );
+
+      expect(versions).toEqual([
+        {
+          version: 1,
+          content: "Paciente estável",
+          reason: null,
+          author: {
+            id: author.id,
+            name: author.name,
+            coren: author.coren,
+            corenState: author.corenState,
+          },
+          createdAt,
+        },
+      ]);
+      expect(withOwnerScope).toHaveBeenCalledWith(
+        "owner-1",
+        expect.any(Function),
+      );
+      expect(recordRepository.listVersions).toHaveBeenCalledWith(
+        "owner-1",
+        "record-1",
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith({
+        userId: "owner-1",
+        action: "record.list_versions",
+        resourceType: "record",
+        resourceId: "record-1",
+        patientId,
+      });
+    });
+
+    it("should throw NotFoundException without recording when the record is not found", async () => {
+      vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue(null);
+
+      await expect(
+        listRecordVersions("owner-1", patientId, "record-1"),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(auditLogService.record).not.toHaveBeenCalled();
     });
   });
 });
