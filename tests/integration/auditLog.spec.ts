@@ -33,6 +33,19 @@ describe("audit log", () => {
     });
   });
 
+  it("should record the client IP added by the trusted proxy, ignoring forged entries", async () => {
+    await createVerifiedUser();
+
+    await request(app)
+      .post(`${API}/auth/signin`)
+      .set("X-Forwarded-For", "198.51.100.9, 203.0.113.7")
+      .send({ email: userData.email, password: userData.password })
+      .expect(200);
+
+    const [log] = await findAuditLogs();
+    expect(log?.ip).toBe("203.0.113.7");
+  });
+
   it("should not record a failed signin", async () => {
     await createVerifiedUser();
 

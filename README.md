@@ -20,6 +20,8 @@ Copie `.env.example` para `.env` e preencha:
 - `RESEND_API_KEY` — chave da API do Resend
 - `RESEND_EMAIL_ORIGIN` — remetente dos e-mails transacionais
 
+`TRUST_PROXY` é opcional e diz em quais intermediários (balanceador, servidor do front) a API confia para descobrir o IP do cliente pelo header `X-Forwarded-For`. Esse IP vai para o log de auditoria e para os rate limits por IP. Aceita o número de intermediários entre o cliente e a API (padrão `1`) ou uma lista de IPs/sub-redes confiáveis (ex.: `10.0.0.0/8, loopback`), que é a opção mais segura quando os endereços são conhecidos. `true`/`false` são recusados: confiar em qualquer um permitiria forjar o IP. Com o valor errado, ou todos os acessos aparecem com o IP do intermediário (o limite de login passa a ser dividido por todos os usuários), ou o cliente consegue inventar o próprio IP.
+
 `LOG_LEVEL` é opcional (`debug`, `info`, `warn`, `error`; padrão `info`). `NODE_ENV` é opcional e vale `development` por padrão. Em `development` os rate limits ficam desativados; em `production` o cookie de autenticação passa a exigir HTTPS (`secure`).
 
 ## Rodando localmente

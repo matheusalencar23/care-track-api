@@ -65,6 +65,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 - [x] Rate limit por usuário nas rotas autenticadas (acordado com o front em 04/11/2026): o limite geral de 100/h por IP travava o uso normal do front e seria dividido por todas as enfermeiras de uma instituição atrás do mesmo IP. As rotas autenticadas (`/patients/**`, `/auth/me`, `/auth/signout`) passam ao `userLimiter`, de 300 requisições por minuto por usuário, aplicado depois da autenticação. O limite por IP fica só nas rotas públicas.
 - [x] `code` estável nos erros (acordado com o front em 04/11/2026): toda resposta de erro traz `code`, a chave da mensagem em `src/shared/messages.ts`, além da `message` em português. O front decide pelo `code` (ex.: na edição de registro, `RECORD_VERSION_OUTDATED` pede recarga e `PATIENT_ARCHIVED` bloqueia a ação), em vez de comparar textos. As exceções recebem a chave, tipada, e não o texto.
 - [x] Erros de validação por campo (acordado com o front em 04/11/2026): os itens do `errors` do 422 passam de texto a `{ location, path, message }`, para o front mostrar cada erro no campo do formulário.
+- [x] `trust proxy` configurável pela `TRUST_PROXY` (número de intermediários, padrão `1`, ou lista de IPs/sub-redes confiáveis; `true`/`false` recusados). O valor de produção depende da topologia de deploy (ver Fase 5).
 
 ### Fase 1 — Pacientes
 
@@ -107,6 +108,7 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 ### Fase 5 — Deploy
 
 - [ ] Servidor em região no Brasil, HTTPS e gestão de segredos.
+- [ ] Definir a `TRUST_PROXY` conforme os intermediários de produção (balanceador, servidor do Next que repassa `/api/v1` para a API) e conferir, com uma requisição real, que o IP gravado na auditoria é o do navegador. O proxy do Next não acrescenta o `X-Forwarded-For`: alguém confiável antes dele (balanceador ou plataforma) precisa anotar o IP do cliente.
 - [ ] Postgres 18 gerenciado em região no Brasil (ex.: RDS, Cloud SQL, Neon, Supabase), com dois usuários: o dono do schema para as migrações e o `care_track_app` (login habilitado com senha forte) para a API. O usuário da API não pode ser superusuário nem dono das tabelas, porque os dois ignoram o RLS.
 - [ ] Etapa de migração no deploy (`node dist/db/migrate.js` com a `DATABASE_MIGRATION_URL`) antes de subir a nova versão da API.
 - [ ] Limpeza periódica dos tokens de e-mail e de senha expirados (o MongoDB apagava com índice TTL; no Postgres, um job do operador, já que a API não tem DELETE).
