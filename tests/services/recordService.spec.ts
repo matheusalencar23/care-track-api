@@ -154,7 +154,7 @@ describe("recordService", () => {
 
     it("should not save the record when the patient is not found", async () => {
       vi.mocked(patientService.assertPatientIsActive).mockRejectedValueOnce(
-        new NotFoundException("Paciente não encontrado!"),
+        new NotFoundException("PATIENT_NOT_FOUND"),
       );
 
       await expect(
@@ -166,7 +166,7 @@ describe("recordService", () => {
 
     it("should not save the record when the patient is archived", async () => {
       vi.mocked(patientService.assertPatientIsActive).mockRejectedValueOnce(
-        new ConflictException("Paciente arquivado"),
+        new ConflictException("PATIENT_ARCHIVED"),
       );
 
       await expect(
@@ -258,7 +258,7 @@ describe("recordService", () => {
 
     it("should not edit when the patient is not active", async () => {
       vi.mocked(patientService.assertPatientIsActive).mockRejectedValueOnce(
-        new ConflictException("Paciente arquivado"),
+        new ConflictException("PATIENT_ARCHIVED"),
       );
 
       await expect(
@@ -431,7 +431,7 @@ describe("recordService", () => {
 
     it("should not void when the patient is not active", async () => {
       vi.mocked(patientService.assertPatientIsActive).mockRejectedValueOnce(
-        new ConflictException("Paciente arquivado"),
+        new ConflictException("PATIENT_ARCHIVED"),
       );
 
       await expect(
@@ -522,7 +522,7 @@ describe("recordService", () => {
 
     it("should not list nor record when the patient is not found", async () => {
       vi.mocked(patientService.assertPatientExists).mockRejectedValueOnce(
-        new NotFoundException("Paciente não encontrado!"),
+        new NotFoundException("PATIENT_NOT_FOUND"),
       );
 
       await expect(

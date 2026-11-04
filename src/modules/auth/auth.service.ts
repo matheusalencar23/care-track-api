@@ -8,7 +8,6 @@ import {
 import { createSession } from "./session.js";
 import { comparePassword } from "../../utils/crypt.utils.js";
 import { withTransaction } from "../../db/db.js";
-import { messages } from "../../shared/messages.js";
 import { sendPasswordResetEmail } from "../../services/email/email.service.js";
 import { PASSWORD_RESET_HOST } from "../../config/secrets.js";
 import { AppLogger } from "../../shared/appLogger.js";
@@ -18,13 +17,13 @@ export const login = async (email: string, password: string) => {
   const user = await userRepository.findByEmail(email);
 
   if (!user || !user.emailVerifiedAt) {
-    throw new BadRequestException(messages.INVALID_CREDENTIALS);
+    throw new BadRequestException("INVALID_CREDENTIALS");
   }
 
   const isPasswordMatched = await comparePassword(password, user.passwordHash);
 
   if (!isPasswordMatched) {
-    throw new BadRequestException(messages.INVALID_CREDENTIALS);
+    throw new BadRequestException("INVALID_CREDENTIALS");
   }
 
   await auditLogService.record({
@@ -59,7 +58,7 @@ export const resetPassword = async (token: string, password: string) => {
   const user = await userRepository.findById(passwordResetToken.userId);
 
   if (!user) {
-    throw new UnprocessableEntityException(messages.INVALID_LINK_TOKEN, []);
+    throw new UnprocessableEntityException("INVALID_LINK_TOKEN", []);
   }
 
   const now = new Date();

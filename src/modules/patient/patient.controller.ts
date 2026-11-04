@@ -3,7 +3,6 @@ import { AppLogger } from "../../shared/appLogger.js";
 import * as patientService from "./patient.service.js";
 import { ListPatientsQuerySchema } from "./patient.schema.js";
 import { UnauthorizedException } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 
 const patientFields = (body: Request["body"]) => {
   const { name, birthDate, cpf, cns, phone } = body;
@@ -19,7 +18,7 @@ export const create = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const patient = await patientService.createPatient(
@@ -39,7 +38,7 @@ export const list = async (req: Request, res: Response, next: NextFunction) => {
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const result = await patientService.listPatients(
@@ -59,7 +58,7 @@ export const get = async (req: Request, res: Response, next: NextFunction) => {
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const patient = await patientService.getPatient(
@@ -83,7 +82,7 @@ export const update = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const patient = await patientService.updatePatient(
@@ -108,7 +107,7 @@ export const archive = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const patient = await patientService.archivePatient(
@@ -132,7 +131,7 @@ export const unarchive = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const patient = await patientService.unarchivePatient(

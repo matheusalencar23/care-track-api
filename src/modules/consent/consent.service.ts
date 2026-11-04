@@ -8,7 +8,6 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 import { AppLogger } from "../../shared/appLogger.js";
 import { withOwnerScope } from "../../db/db.js";
 
@@ -39,7 +38,7 @@ const findPatientOrThrow = async (ownerId: string, patientId: string) => {
   const patient = await patientRepository.findByIdForOwner(patientId, ownerId);
 
   if (!patient) {
-    throw new NotFoundException(messages.PATIENT_NOT_FOUND);
+    throw new NotFoundException("PATIENT_NOT_FOUND");
   }
 
   return patient;
@@ -54,7 +53,7 @@ export const grantConsent = async (
     const patient = await findPatientOrThrow(ownerId, patientId);
 
     if (patient.archivedAt) {
-      throw new ConflictException(messages.PATIENT_ARCHIVED);
+      throw new ConflictException("PATIENT_ARCHIVED");
     }
 
     const collectedAt = data.collectedAt
@@ -66,13 +65,13 @@ export const grantConsent = async (
       isMinorAt(patient.birthDate, collectedAt)
     ) {
       throw new UnprocessableEntityException(
-        messages.CONSENT_REQUIRES_REPRESENTATIVE,
+        "CONSENT_REQUIRES_REPRESENTATIVE",
         [],
       );
     }
 
     if (await consentRepository.findActive(ownerId, patientId, data.type)) {
-      throw new ConflictException(messages.CONSENT_ALREADY_ACTIVE);
+      throw new ConflictException("CONSENT_ALREADY_ACTIVE");
     }
 
     const consent = await consentRepository.save(
@@ -132,11 +131,11 @@ export const revokeConsent = async (
     );
 
     if (!current) {
-      throw new NotFoundException(messages.CONSENT_NOT_FOUND);
+      throw new NotFoundException("CONSENT_NOT_FOUND");
     }
 
     if (current.status === "revoked") {
-      throw new ConflictException(messages.CONSENT_ALREADY_REVOKED);
+      throw new ConflictException("CONSENT_ALREADY_REVOKED");
     }
 
     const consent = await consentRepository.revoke(

@@ -3,7 +3,6 @@ import { AppLogger } from "../../shared/appLogger.js";
 import { errorDetails } from "../../shared/errorDetails.js";
 import * as userService from "./user.service.js";
 import { UnprocessableEntityException } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 
 export const signup = async (
   req: Request,
@@ -44,7 +43,7 @@ export const validate = async (
 
   try {
     if (!token) {
-      throw new UnprocessableEntityException(messages.INVALID_LINK_TOKEN, []);
+      throw new UnprocessableEntityException("INVALID_LINK_TOKEN", []);
     }
 
     await userService.validateUser(token);

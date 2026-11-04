@@ -32,6 +32,7 @@ describe("rate limits", () => {
 
     const blocked = await attempt().expect(429);
     expect(blocked.body.message).toBe(messages.TOO_MANY_REQUESTS);
+    expect(blocked.body.code).toBe("TOO_MANY_REQUESTS");
   });
 
   it("should limit authenticated routes per user instead of per IP", async () => {

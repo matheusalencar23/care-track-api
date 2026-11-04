@@ -8,7 +8,6 @@ import {
   UnauthorizedException,
   HttpException,
 } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 import { createSession, SESSION_COOKIE, setSessionCookie } from "./session.js";
 
 const isLoggedInBeforePasswordChange = (
@@ -38,7 +37,7 @@ export const authenticationMiddleware = async (
   try {
     const token = req.cookies[SESSION_COOKIE];
     if (!token) {
-      return next(new UnauthorizedException(messages.UNAUTHORIZED));
+      return next(new UnauthorizedException("UNAUTHORIZED"));
     }
 
     const verifiedToken = verifyToken(token);
@@ -46,17 +45,17 @@ export const authenticationMiddleware = async (
     const authTime = resolveAuthTime(verifiedToken);
 
     if (typeof verifiedToken.sub !== "string" || authTime === undefined) {
-      return next(new UnauthorizedException(messages.UNAUTHORIZED));
+      return next(new UnauthorizedException("UNAUTHORIZED"));
     }
 
     const user = await userRepository.findById(verifiedToken.sub);
 
     if (!user) {
-      return next(new UnauthorizedException(messages.UNAUTHORIZED));
+      return next(new UnauthorizedException("UNAUTHORIZED"));
     }
 
     if (isLoggedInBeforePasswordChange(authTime, user.passwordChangedAt)) {
-      return next(new UnauthorizedException(messages.UNAUTHORIZED));
+      return next(new UnauthorizedException("UNAUTHORIZED"));
     }
 
     req.user = {
@@ -78,6 +77,6 @@ export const authenticationMiddleware = async (
     }
 
     AppLogger.error("Authentication error", errorDetails(err));
-    return next(new HttpException(messages.INTERNAL_SERVER_ERROR, 500, null));
+    return next(new HttpException("INTERNAL_SERVER_ERROR", 500, null));
   }
 };

@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import { getDb, single } from "../../db/db.js";
 import { users } from "./user.model.js";
 import { BadRequestException } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 import { isDuplicateKeyError } from "../../utils/db.utils.js";
 import { hashPassword } from "../../utils/crypt.utils.js";
 import type { SignupData } from "./user.schema.js";
@@ -45,7 +44,7 @@ export const save = async (data: SignupData) => {
     );
   } catch (err) {
     if (isDuplicateKeyError(err)) {
-      throw new BadRequestException(messages.INVALID_REGISTRATION_CREDENTIALS);
+      throw new BadRequestException("INVALID_REGISTRATION_CREDENTIALS");
     }
 
     throw err;

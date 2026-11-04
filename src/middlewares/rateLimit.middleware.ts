@@ -1,13 +1,18 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { NODE_ENV } from "../config/secrets.js";
-import { messages } from "../shared/messages.js";
+import { MessageCode, messages } from "../shared/messages.js";
+
+const tooManyRequests = {
+  code: "TOO_MANY_REQUESTS" satisfies MessageCode,
+  message: messages.TOO_MANY_REQUESTS,
+};
 
 export const generalLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 100,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { message: messages.TOO_MANY_REQUESTS },
+  message: tooManyRequests,
   skip: () => NODE_ENV === "development",
 });
 
@@ -16,7 +21,7 @@ export const emailLimiter = rateLimit({
   limit: 5,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { message: messages.TOO_MANY_REQUESTS },
+  message: tooManyRequests,
   skip: () => NODE_ENV === "development",
 });
 
@@ -25,7 +30,7 @@ export const authLimiter = rateLimit({
   limit: 10,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  message: { message: messages.TOO_MANY_REQUESTS },
+  message: tooManyRequests,
   skip: () => NODE_ENV === "development",
 });
 
@@ -35,6 +40,6 @@ export const userLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   keyGenerator: (req) => req.user?.id ?? ipKeyGenerator(req.ip ?? ""),
-  message: { message: messages.TOO_MANY_REQUESTS },
+  message: tooManyRequests,
   skip: () => NODE_ENV === "development",
 });

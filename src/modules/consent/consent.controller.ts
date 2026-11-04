@@ -2,7 +2,6 @@ import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../../shared/appLogger.js";
 import * as consentService from "./consent.service.js";
 import { UnauthorizedException } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 
 export const grant = async (
   req: Request,
@@ -13,7 +12,7 @@ export const grant = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const { type, method, grantor, representativeName, collectedAt } = req.body;
@@ -36,7 +35,7 @@ export const list = async (req: Request, res: Response, next: NextFunction) => {
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const consents = await consentService.listConsents(
@@ -60,7 +59,7 @@ export const revoke = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const consent = await consentService.revokeConsent(

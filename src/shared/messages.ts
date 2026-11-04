@@ -56,3 +56,5 @@ export const messages = {
   INTERNAL_SERVER_ERROR:
     "Ocorreu um erro inesperado. Tente novamente mais tarde.",
 } as const;
+
+export type MessageCode = keyof typeof messages;

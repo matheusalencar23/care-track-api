@@ -5,7 +5,6 @@ import * as authService from "./auth.service.js";
 import * as auditLogService from "../audit/auditLog.service.js";
 import { clearSessionCookie, setSessionCookie } from "./session.js";
 import { UnauthorizedException } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 
 export const signin = async (
   req: Request,
@@ -33,7 +32,7 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
 
   try {
     if (!user || !req.sessionExpiresAt) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     return res.json({
@@ -59,7 +58,7 @@ export const signout = async (
 
   try {
     if (!user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     await auditLogService.record({

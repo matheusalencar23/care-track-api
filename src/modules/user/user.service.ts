@@ -5,7 +5,6 @@ import {
   TooManyRequestsException,
   UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 import { sendConfirmationEmail } from "../../services/email/email.service.js";
 import * as emailVerificationTokenService from "../email/emailVerificationToken.service.js";
 import { withTransaction } from "../../db/db.js";
@@ -18,7 +17,7 @@ export const createUser = async (data: SignupData) => {
   const userAlreadyExists = await userRepository.findByEmail(data.email);
 
   if (userAlreadyExists) {
-    throw new BadRequestException(messages.INVALID_REGISTRATION_CREDENTIALS);
+    throw new BadRequestException("INVALID_REGISTRATION_CREDENTIALS");
   }
 
   const user = await userRepository.save(data);
@@ -33,11 +32,11 @@ export const validateUser = async (token: string) => {
   const user = await userRepository.findById(emailVerificationToken.userId);
 
   if (!user) {
-    throw new UnprocessableEntityException(messages.INVALID_LINK_TOKEN, []);
+    throw new UnprocessableEntityException("INVALID_LINK_TOKEN", []);
   }
 
   if (user.emailVerifiedAt) {
-    throw new UnprocessableEntityException(messages.EMAIL_ALREADY_VERIFIED, []);
+    throw new UnprocessableEntityException("EMAIL_ALREADY_VERIFIED", []);
   }
 
   // Na mesma transação: se algo falhar, nem o e-mail fica confirmado nem o
@@ -52,15 +51,15 @@ export const resendValidation = async (email: string) => {
   const user = await userRepository.findByEmail(email);
 
   if (!user) {
-    throw new NotFoundException(messages.USER_NOT_FOUND);
+    throw new NotFoundException("USER_NOT_FOUND");
   }
 
   if (user.emailVerifiedAt) {
-    throw new UnprocessableEntityException(messages.EMAIL_ALREADY_VERIFIED, []);
+    throw new UnprocessableEntityException("EMAIL_ALREADY_VERIFIED", []);
   }
 
   if (await emailVerificationTokenService.isOnResendCooldown(user.id)) {
-    throw new TooManyRequestsException(messages.CONFIRMATION_EMAIL_COOLDOWN);
+    throw new TooManyRequestsException("CONFIRMATION_EMAIL_COOLDOWN");
   }
 
   await createValidationEmail(user.id, email, user.name);

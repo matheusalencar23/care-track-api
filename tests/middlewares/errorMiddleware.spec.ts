@@ -32,14 +32,16 @@ describe("errorMiddleware", () => {
     const res = createMockResponse();
     const next = vi.fn();
 
-    const error = new NotFoundException("User not found!");
+    const error = new NotFoundException("USER_NOT_FOUND");
 
     errorMiddleware(error, req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "User not found!" }),
-    );
+    expect(res.json).toHaveBeenCalledWith({
+      code: "USER_NOT_FOUND",
+      message: messages.USER_NOT_FOUND,
+      timestamp: error.timestamp,
+    });
   });
 
   it("should respond with a generic 500 for a plain Error", () => {
@@ -51,6 +53,7 @@ describe("errorMiddleware", () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({
+      code: "INTERNAL_SERVER_ERROR",
       message: messages.INTERNAL_SERVER_ERROR,
     });
   });
@@ -64,6 +67,7 @@ describe("errorMiddleware", () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({
+      code: "INTERNAL_SERVER_ERROR",
       message: messages.INTERNAL_SERVER_ERROR,
     });
   });
@@ -79,7 +83,7 @@ describe("errorMiddleware", () => {
 
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ message: messages.CONFLICT }),
+      expect.objectContaining({ code: "CONFLICT", message: messages.CONFLICT }),
     );
 
     const responseBody = JSON.stringify(vi.mocked(res.json).mock.calls);
@@ -111,14 +115,15 @@ describe("errorMiddleware", () => {
     const res = createMockResponse();
 
     errorMiddleware(
-      new NotFoundException("User not found!"),
+      new NotFoundException("USER_NOT_FOUND"),
       createMockRequest({}),
       res,
       vi.fn(),
     );
 
-    expect(AppLogger.warn).toHaveBeenCalledWith("User not found!", {
+    expect(AppLogger.warn).toHaveBeenCalledWith(messages.USER_NOT_FOUND, {
       statusCode: 404,
+      code: "USER_NOT_FOUND",
     });
     expect(AppLogger.error).not.toHaveBeenCalled();
   });
@@ -127,15 +132,16 @@ describe("errorMiddleware", () => {
     const res = createMockResponse();
 
     errorMiddleware(
-      new HttpException("Internal Server Error", 500, null),
+      new HttpException("INTERNAL_SERVER_ERROR", 500, null),
       createMockRequest({}),
       res,
       vi.fn(),
     );
 
-    expect(AppLogger.error).toHaveBeenCalledWith("Internal Server Error", {
-      statusCode: 500,
-    });
+    expect(AppLogger.error).toHaveBeenCalledWith(
+      messages.INTERNAL_SERVER_ERROR,
+      { statusCode: 500, code: "INTERNAL_SERVER_ERROR" },
+    );
     expect(AppLogger.warn).not.toHaveBeenCalled();
   });
 });

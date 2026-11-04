@@ -1,8 +1,9 @@
+import { MessageCode } from "../messages.js";
 import { HTTPStatusCode } from "../httpStatusCode.js";
 import { HttpException } from "./httpException.js";
 
 export class BadRequestException extends HttpException {
-  constructor(message: string) {
-    super(message, HTTPStatusCode.BadRequest, null);
+  constructor(code: MessageCode) {
+    super(code, HTTPStatusCode.BadRequest, null);
   }
 }

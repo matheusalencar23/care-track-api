@@ -19,7 +19,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
-    exposedHeaders: [SESSION_EXPIRES_HEADER],
+    exposedHeaders: [SESSION_EXPIRES_HEADER, "X-Request-Id"],
   }),
 );
 app.use(express.json());

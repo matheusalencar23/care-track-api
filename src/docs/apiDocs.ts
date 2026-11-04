@@ -1,4 +1,5 @@
 import z from "zod";
+import { MessageCode, messages } from "../shared/messages.js";
 
 export const apiSchemas = z.registry<{ id: string }>();
 
@@ -25,9 +26,17 @@ export interface ApiOperation {
   responses: Record<number, ApiResponse>;
 }
 
+const codeSchema = z
+  .enum(Object.keys(messages) as [MessageCode, ...MessageCode[]])
+  .meta({
+    description:
+      "Identificador estável do erro. Use-o para decidir o que fazer; a `message` é o texto para o usuário e pode mudar.",
+  });
+
 export const ErrorSchema = component(
   "Error",
   z.object({
+    code: codeSchema,
     message: z.string(),
     timestamp: z.iso.datetime(),
   }),
@@ -36,6 +45,7 @@ export const ErrorSchema = component(
 export const ValidationErrorSchema = component(
   "ValidationError",
   z.object({
+    code: codeSchema,
     message: z.string(),
     errors: z.array(z.string()),
     timestamp: z.iso.datetime(),
@@ -45,6 +55,7 @@ export const ValidationErrorSchema = component(
 export const MessageSchema = component(
   "Message",
   z.object({
+    code: codeSchema,
     message: z.string(),
   }),
 );

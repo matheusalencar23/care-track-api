@@ -13,7 +13,6 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 import { AppLogger } from "../../shared/appLogger.js";
 import { withOwnerScope } from "../../db/db.js";
 
@@ -65,7 +64,7 @@ const findRecordOrThrow = async (
   );
 
   if (!found) {
-    throw new NotFoundException(messages.RECORD_NOT_FOUND);
+    throw new NotFoundException("RECORD_NOT_FOUND");
   }
 
   return found;
@@ -151,18 +150,15 @@ export const updateRecord = async (
     );
 
     if (record.voidedAt) {
-      throw new ConflictException(messages.RECORD_VOIDED);
+      throw new ConflictException("RECORD_VOIDED");
     }
 
     if (current.version !== data.version) {
-      throw new ConflictException(messages.RECORD_VERSION_OUTDATED);
+      throw new ConflictException("RECORD_VERSION_OUTDATED");
     }
 
     if (current.content === data.content) {
-      throw new UnprocessableEntityException(
-        messages.RECORD_CONTENT_UNCHANGED,
-        [],
-      );
+      throw new UnprocessableEntityException("RECORD_CONTENT_UNCHANGED", []);
     }
 
     const version = await recordRepository.saveVersion(
@@ -232,7 +228,7 @@ export const voidRecord = async (
     );
 
     if (current.voidedAt) {
-      throw new ConflictException(messages.RECORD_ALREADY_VOIDED);
+      throw new ConflictException("RECORD_ALREADY_VOIDED");
     }
 
     const record = await recordRepository.markVoided(
@@ -244,7 +240,7 @@ export const voidRecord = async (
     );
 
     if (!record) {
-      throw new ConflictException(messages.RECORD_ALREADY_VOIDED);
+      throw new ConflictException("RECORD_ALREADY_VOIDED");
     }
 
     await auditLogService.record({

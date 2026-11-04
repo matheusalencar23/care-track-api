@@ -188,6 +188,7 @@ describe("records", () => {
       .send({ content: "Curativo realizado" })
       .expect(409);
     expect(response.body.message).toBe(messages.PATIENT_ARCHIVED);
+    expect(response.body.code).toBe("PATIENT_ARCHIVED");
     expect(await countRows(records)).toBe(0);
   });
 
@@ -354,6 +355,7 @@ describe("record editing", () => {
       .send({ content: "Edição de outra aba", version: 1 })
       .expect(409);
     expect(response.body.message).toBe(messages.RECORD_VERSION_OUTDATED);
+    expect(response.body.code).toBe("RECORD_VERSION_OUTDATED");
     expect(await countRows(recordVersions)).toBe(2);
   });
 
@@ -382,6 +384,7 @@ describe("record editing", () => {
       .send({ content: " Curativo realizado ", version: 1 })
       .expect(422);
     expect(response.body.message).toBe(messages.RECORD_CONTENT_UNCHANGED);
+    expect(response.body.code).toBe("RECORD_CONTENT_UNCHANGED");
     expect(await countRows(recordVersions)).toBe(1);
   });
 

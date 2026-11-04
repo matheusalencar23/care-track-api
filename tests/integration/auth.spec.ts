@@ -185,7 +185,9 @@ describe("sliding session", () => {
 
     expect(response.status).toBe(200);
 
-    const expiresAt = Date.parse(response.headers["x-session-expires-at"]);
+    const expiresAt = Date.parse(
+      response.headers["x-session-expires-at"] ?? "",
+    );
     const idleLimit = (nowInSeconds() + SESSION_IDLE_TIMEOUT_SECONDS) * 1000;
     expect(Math.abs(expiresAt - idleLimit)).toBeLessThanOrEqual(1000);
 

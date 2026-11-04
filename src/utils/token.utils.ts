@@ -1,7 +1,6 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { UnauthorizedException } from "../shared/exceptions/index.js";
 import { JWT_SECRET } from "../config/secrets.js";
-import { messages } from "../shared/messages.js";
 
 export const generateToken = (
   body: Record<string, unknown>,
@@ -18,7 +17,7 @@ export const verifyToken = (token: string): JwtPayload => {
       err instanceof jwt.TokenExpiredError ||
       err instanceof jwt.JsonWebTokenError
     ) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     throw err;

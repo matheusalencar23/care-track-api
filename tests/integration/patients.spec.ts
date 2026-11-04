@@ -90,6 +90,7 @@ describe("patients", () => {
       .expect(422);
 
     expect(response.body.message).toBe(messages.VALIDATION_FAILED);
+    expect(response.body.code).toBe("VALIDATION_FAILED");
   });
 
   it("should reject an invalid patient id", async () => {
@@ -104,6 +105,7 @@ describe("patients", () => {
 
     const response = await agent.get(`${API}/patients/${id}`).expect(404);
     expect(response.body.message).toBe(messages.PATIENT_NOT_FOUND);
+    expect(response.body.code).toBe("PATIENT_NOT_FOUND");
   });
 
   it("should reject a duplicated CPF for the same nurse", async () => {

@@ -3,7 +3,6 @@ import { AppLogger } from "../../shared/appLogger.js";
 import * as recordService from "./record.service.js";
 import { ListRecordsQuerySchema } from "./record.schema.js";
 import { UnauthorizedException } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 
 const toAuthor = ({
   id,
@@ -21,7 +20,7 @@ export const create = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const record = await recordService.createRecord(
@@ -42,7 +41,7 @@ export const list = async (req: Request, res: Response, next: NextFunction) => {
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const page = await recordService.listRecords(
@@ -67,7 +66,7 @@ export const update = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const { content, version, reason } = req.body;
@@ -99,7 +98,7 @@ export const listVersions = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const versions = await recordService.listRecordVersions(
@@ -124,7 +123,7 @@ export const voidRecord = async (
 
   try {
     if (!req.user) {
-      throw new UnauthorizedException(messages.UNAUTHORIZED);
+      throw new UnauthorizedException("UNAUTHORIZED");
     }
 
     const { reason, details } = req.body;

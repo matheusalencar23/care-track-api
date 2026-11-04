@@ -6,7 +6,6 @@ import {
   ConflictException,
   NotFoundException,
 } from "../../shared/exceptions/index.js";
-import { messages } from "../../shared/messages.js";
 import { AppLogger } from "../../shared/appLogger.js";
 import { withOwnerScope } from "../../db/db.js";
 
@@ -26,7 +25,7 @@ const findPatientOrThrow = async (ownerId: string, patientId: string) => {
   const patient = await patientRepository.findByIdForOwner(patientId, ownerId);
 
   if (!patient) {
-    throw new NotFoundException(messages.PATIENT_NOT_FOUND);
+    throw new NotFoundException("PATIENT_NOT_FOUND");
   }
 
   return patient;
@@ -49,7 +48,7 @@ export const assertPatientIsActive = async (
     const patient = await findPatientOrThrow(ownerId, patientId);
 
     if (patient.archivedAt) {
-      throw new ConflictException(messages.PATIENT_ARCHIVED);
+      throw new ConflictException("PATIENT_ARCHIVED");
     }
   });
 };
@@ -137,7 +136,7 @@ export const updatePatient = async (
     const current = await findPatientOrThrow(ownerId, patientId);
 
     if (current.archivedAt) {
-      throw new ConflictException(messages.PATIENT_ARCHIVED);
+      throw new ConflictException("PATIENT_ARCHIVED");
     }
 
     const patient = await patientRepository.update(patientId, ownerId, data);
@@ -162,7 +161,7 @@ export const archivePatient = async (ownerId: string, patientId: string) => {
     const current = await findPatientOrThrow(ownerId, patientId);
 
     if (current.archivedAt) {
-      throw new ConflictException(messages.PATIENT_ALREADY_ARCHIVED);
+      throw new ConflictException("PATIENT_ALREADY_ARCHIVED");
     }
 
     const patient = await patientRepository.setArchivedAt(
@@ -191,7 +190,7 @@ export const unarchivePatient = async (ownerId: string, patientId: string) => {
     const current = await findPatientOrThrow(ownerId, patientId);
 
     if (!current.archivedAt) {
-      throw new ConflictException(messages.PATIENT_NOT_ARCHIVED);
+      throw new ConflictException("PATIENT_NOT_ARCHIVED");
     }
 
     const patient = await patientRepository.setArchivedAt(

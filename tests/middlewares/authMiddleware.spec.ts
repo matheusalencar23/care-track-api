@@ -186,7 +186,7 @@ describe("authenticationMiddleware", () => {
 
   it("should call next with UnauthorizedException (not a generic 500) when the token is expired", async () => {
     vi.mocked(tokenUtils.verifyToken).mockImplementation(() => {
-      throw new UnauthorizedException("Unauthorized");
+      throw new UnauthorizedException("UNAUTHORIZED");
     });
 
     const req = createMockRequest({ cookies: { token: "expired-token" } });
