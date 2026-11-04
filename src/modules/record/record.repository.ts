@@ -1,6 +1,10 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb, single } from "../../db/db.js";
-import { records, recordVersions } from "./record.model.js";
+import {
+  records,
+  recordVersions,
+  type RecordVoidReason,
+} from "./record.model.js";
 import type { BrazilianState } from "../../shared/brazilianStates.js";
 
 export interface RecordAuthor {
@@ -119,4 +123,31 @@ export const listVersions = async (ownerId: string, recordId: string) => {
       ),
     )
     .orderBy(desc(recordVersions.version));
+};
+
+export const markVoided = async (
+  id: string,
+  ownerId: string,
+  voidedBy: string,
+  reason: RecordVoidReason,
+  details: string | null,
+) => {
+  const [record] = await getDb()
+    .update(records)
+    .set({
+      voidedAt: new Date(),
+      voidedBy,
+      voidReason: reason,
+      voidReasonDetails: details,
+    })
+    .where(
+      and(
+        eq(records.id, id),
+        eq(records.ownerId, ownerId),
+        isNull(records.voidedAt),
+      ),
+    )
+    .returning();
+
+  return record ?? null;
 };

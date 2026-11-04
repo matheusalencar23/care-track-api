@@ -83,6 +83,9 @@ describe("records", () => {
       },
       createdAt: expect.any(String),
       editedAt: null,
+      voidedAt: null,
+      voidReason: null,
+      voidReasonDetails: null,
     });
     expect(new Date(response.body.createdAt).getTime()).toBeGreaterThanOrEqual(
       before.getTime() - 1000,
@@ -464,5 +467,205 @@ describe("record editing", () => {
 
     const versions = await testDb().select().from(recordVersions);
     expect(versions.map((v) => v.content)).toEqual(["Curativo realizado"]);
+  });
+});
+
+describe("record voiding", () => {
+  const voidUrl = (patientId: string, recordId: string) =>
+    `${recordUrl(patientId, recordId)}/void`;
+
+  it("should void a record with the reason and keep its content", async () => {
+    const { user, agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    const response = await agent
+      .post(voidUrl(patientId, recordId))
+      .send({ reason: "other", details: "  Registro feito para teste  " })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: recordId,
+      content: "Curativo realizado",
+      version: 1,
+      voidedAt: expect.any(String),
+      voidReason: "other",
+      voidReasonDetails: "Registro feito para teste",
+    });
+
+    const [stored] = await testDb()
+      .select()
+      .from(records)
+      .where(eq(records.id, recordId));
+    expect(stored).toMatchObject({
+      voidedBy: user.id,
+      voidReason: "other",
+      voidReasonDetails: "Registro feito para teste",
+    });
+    expect(await countRows(recordVersions)).toBe(1);
+  });
+
+  it("should void with a listed reason and no details", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    const response = await agent
+      .post(voidUrl(patientId, recordId))
+      .send({ reason: "wrong_patient" })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      voidReason: "wrong_patient",
+      voidReasonDetails: null,
+    });
+  });
+
+  it("should audit the voiding", async () => {
+    const { user, agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    await agent
+      .post(voidUrl(patientId, recordId))
+      .send({ reason: "duplicate" })
+      .expect(200);
+
+    expect(await findAuditLogs(eq(auditLogs.action, "record.void"))).toEqual([
+      expect.objectContaining({
+        userId: user.id,
+        resourceType: "record",
+        resourceId: recordId,
+        patientId,
+      }),
+    ]);
+  });
+
+  it("should not void a record twice or change the voiding", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+    await agent
+      .post(voidUrl(patientId, recordId))
+      .send({ reason: "duplicate" })
+      .expect(200);
+
+    const response = await agent
+      .post(voidUrl(patientId, recordId))
+      .send({ reason: "wrong_patient" })
+      .expect(409);
+    expect(response.body.message).toBe(messages.RECORD_ALREADY_VOIDED);
+
+    const [stored] = await testDb().select().from(records);
+    expect(stored?.voidReason).toBe("duplicate");
+  });
+
+  it("should accept only one of two simultaneous voidings", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    const responses = await Promise.all(
+      (["duplicate", "wrong_patient"] as const).map((reason) =>
+        agent.post(voidUrl(patientId, recordId)).send({ reason }),
+      ),
+    );
+
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(
+      await findAuditLogs(eq(auditLogs.action, "record.void")),
+    ).toHaveLength(1);
+  });
+
+  it("should not edit a voided record, but still list its versions", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+    await agent
+      .post(voidUrl(patientId, recordId))
+      .send({ reason: "duplicate" })
+      .expect(200);
+
+    const response = await agent
+      .put(recordUrl(patientId, recordId))
+      .send({ content: "Novo texto", version: 1 })
+      .expect(409);
+    expect(response.body.message).toBe(messages.RECORD_VOIDED);
+
+    const versions = await agent
+      .get(versionsUrl(patientId, recordId))
+      .expect(200);
+    expect(versions.body).toHaveLength(1);
+  });
+
+  it.each([
+    [{}],
+    [{ reason: "mistake" }],
+    [{ reason: "other" }],
+    [{ reason: "other", details: "   " }],
+    [{ reason: "duplicate", details: "a".repeat(501) }],
+  ])("should reject the invalid voiding %o", async (body) => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    await agent.post(voidUrl(patientId, recordId)).send(body).expect(422);
+
+    const [stored] = await testDb().select().from(records);
+    expect(stored?.voidedAt).toBeNull();
+  });
+
+  it("should not void a record of an archived patient", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+    await agent.post(`${API}/patients/${patientId}/archive`).expect(200);
+
+    const response = await agent
+      .post(voidUrl(patientId, recordId))
+      .send({ reason: "duplicate" })
+      .expect(409);
+    expect(response.body.message).toBe(messages.PATIENT_ARCHIVED);
+  });
+
+  it("should return 404 for a record that does not exist or belongs to another patient", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const otherPatientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+
+    for (const url of [
+      voidUrl(patientId, randomUUID()),
+      voidUrl(otherPatientId, recordId),
+    ]) {
+      const response = await agent
+        .post(url)
+        .send({ reason: "duplicate" })
+        .expect(404);
+      expect(response.body.message).toBe(messages.RECORD_NOT_FOUND);
+    }
+  });
+
+  it("should require authentication", async () => {
+    await request(app)
+      .post(voidUrl(randomUUID(), randomUUID()))
+      .send({ reason: "duplicate" })
+      .expect(401);
+  });
+
+  it("should not let another nurse void a record", async () => {
+    const { agent: owner } = await signedInAgent();
+    const patientId = await createPatient(owner);
+    const recordId = await createRecord(owner, patientId);
+    const { agent: other } = await signedInAgent({ email: "ana@example.com" });
+
+    const response = await other
+      .post(voidUrl(patientId, recordId))
+      .send({ reason: "duplicate" })
+      .expect(404);
+    expect(response.body.message).toBe(messages.PATIENT_NOT_FOUND);
+
+    const [stored] = await testDb().select().from(records);
+    expect(stored?.voidedAt).toBeNull();
   });
 });

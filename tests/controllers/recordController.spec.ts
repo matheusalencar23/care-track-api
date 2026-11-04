@@ -4,11 +4,13 @@ import {
   create,
   listVersions,
   update,
+  voidRecord,
 } from "../../src/modules/record/record.controller.js";
 import {
   createRecord,
   listRecordVersions,
   updateRecord,
+  voidRecord as voidRecordService,
 } from "../../src/modules/record/record.service.js";
 import { UnauthorizedException } from "../../src/shared/exceptions/index.js";
 import {
@@ -21,6 +23,7 @@ vi.mock("../../src/modules/record/record.service.js", () => ({
   createRecord: vi.fn(),
   updateRecord: vi.fn(),
   listRecordVersions: vi.fn(),
+  voidRecord: vi.fn(),
 }));
 
 vi.mock("../../src/shared/appLogger.js", () => ({
@@ -222,6 +225,77 @@ describe("recordController", () => {
 
       expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
       expect(listRecordVersions).not.toHaveBeenCalled();
+    });
+  });
+  describe("voidRecord", () => {
+    it("should void the record with only the known fields", async () => {
+      vi.mocked(voidRecordService).mockResolvedValue(record as never);
+      const req = createMockRequest({
+        user,
+        params: { id: "patient-1", recordId: "record-1" },
+        body: {
+          reason: "other",
+          details: "  Registro de teste  ",
+          voidedBy: "someone-else",
+        },
+      });
+      const res = createMockResponse();
+
+      await voidRecord(req, res, createMockNext());
+
+      expect(voidRecordService).toHaveBeenCalledWith(
+        "owner-1",
+        "patient-1",
+        "record-1",
+        { reason: "other", details: "Registro de teste" },
+      );
+      expect(res.json).toHaveBeenCalledWith(record);
+    });
+
+    it("should not send details when none are given", async () => {
+      vi.mocked(voidRecordService).mockResolvedValue(record as never);
+      const req = createMockRequest({
+        user,
+        params: { id: "patient-1", recordId: "record-1" },
+        body: { reason: "duplicate" },
+      });
+
+      await voidRecord(req, createMockResponse(), createMockNext());
+
+      expect(voidRecordService).toHaveBeenCalledWith(
+        "owner-1",
+        "patient-1",
+        "record-1",
+        { reason: "duplicate" },
+      );
+    });
+
+    it("should call next with UnauthorizedException when there is no authenticated user", async () => {
+      const req = createMockRequest({
+        params: { id: "patient-1", recordId: "record-1" },
+        body: { reason: "duplicate" },
+      });
+      const next = createMockNext();
+
+      await voidRecord(req, createMockResponse(), next);
+
+      expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+      expect(voidRecordService).not.toHaveBeenCalled();
+    });
+
+    it("should call next when the service throws", async () => {
+      const error = new Error("Conflict");
+      vi.mocked(voidRecordService).mockRejectedValue(error);
+      const req = createMockRequest({
+        user,
+        params: { id: "patient-1", recordId: "record-1" },
+        body: { reason: "duplicate" },
+      });
+      const next = createMockNext();
+
+      await voidRecord(req, createMockResponse(), next);
+
+      expect(next).toHaveBeenCalledWith(error);
     });
   });
 });

@@ -92,3 +92,34 @@ export const listVersions = async (
     return next(err);
   }
 };
+
+export const voidRecord = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  AppLogger.info("Voiding record...");
+
+  try {
+    if (!req.user) {
+      throw new UnauthorizedException(messages.UNAUTHORIZED);
+    }
+
+    const { reason, details } = req.body;
+
+    const record = await recordService.voidRecord(
+      req.user.id,
+      req.params["id"] as string,
+      req.params["recordId"] as string,
+      {
+        reason,
+        ...(details !== undefined && { details: details.trim() }),
+      },
+    );
+
+    return res.json(record);
+  } catch (err) {
+    AppLogger.error("Error voiding record");
+    return next(err);
+  }
+};

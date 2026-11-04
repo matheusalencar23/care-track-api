@@ -4,14 +4,33 @@ import {
   foreignKey,
   index,
   integer,
+  pgEnum,
   pgTable,
   text,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { createdAt, id, ownerIsolationPolicy } from "../../db/columns.js";
+import {
+  createdAt,
+  id,
+  ownerIsolationPolicy,
+  timestamptz,
+} from "../../db/columns.js";
 import { patients } from "../patient/patient.model.js";
 import { brazilianStateEnum, users } from "../user/user.model.js";
+
+export const RECORD_VOID_REASONS = [
+  "wrong_patient",
+  "duplicate",
+  "other",
+] as const;
+
+export type RecordVoidReason = (typeof RECORD_VOID_REASONS)[number];
+
+export const recordVoidReasonEnum = pgEnum(
+  "record_void_reason",
+  RECORD_VOID_REASONS,
+);
 
 export const records = pgTable(
   "records",
@@ -23,6 +42,10 @@ export const records = pgTable(
       .notNull()
       .references(() => users.id),
     createdAt: createdAt(),
+    voidedAt: timestamptz(),
+    voidedBy: uuid().references(() => users.id),
+    voidReason: recordVoidReasonEnum(),
+    voidReasonDetails: text(),
   },
   (table) => [
     unique("records_owner_id_id_unique").on(table.ownerId, table.id),
@@ -36,6 +59,17 @@ export const records = pgTable(
       table.patientId,
       table.createdAt.desc(),
       table.id.desc(),
+    ),
+    check(
+      "records_void",
+      sql`(${table.voidedAt} is null) = (${table.voidedBy} is null)
+        and (${table.voidedAt} is null) = (${table.voidReason} is null)`,
+    ),
+    check(
+      "records_void_reason_details",
+      sql`(${table.voidReason} is distinct from 'other' or ${table.voidReasonDetails} is not null)
+        and (${table.voidReasonDetails} is null
+          or (${table.voidReason} is not null and btrim(${table.voidReasonDetails}) <> ''))`,
     ),
     ownerIsolationPolicy("records"),
   ],

@@ -25,6 +25,10 @@ export const messages = {
 
   RECORD_NOT_FOUND: "Registro não encontrado!",
 
+  RECORD_VOIDED: "Este registro foi anulado e não pode ser alterado.",
+
+  RECORD_ALREADY_VOIDED: "Este registro já foi anulado.",
+
   RECORD_VERSION_OUTDATED:
     "Este registro foi alterado depois que você o abriu. Recarregue-o e tente novamente.",
 

@@ -1,4 +1,5 @@
 import z from "zod";
+import { RECORD_VOID_REASONS } from "./record.model.js";
 
 export const RECORD_CONTENT_MAX_LENGTH = 20_000;
 export const RECORD_REASON_MAX_LENGTH = 500;
@@ -52,3 +53,26 @@ export type UpdateRecordData = z.infer<typeof UpdateRecordSchema>["body"];
 export const ListRecordVersionsSchema = z.object({
   params: recordParamsSchema,
 });
+
+export const VoidRecordSchema = z.object({
+  params: recordParamsSchema,
+  body: z
+    .object({
+      reason: z.enum(RECORD_VOID_REASONS, "Motivo da anulação inválido"),
+      details: z
+        .string("Descrição do motivo inválida")
+        .trim()
+        .nonempty("A descrição do motivo não pode ficar em branco")
+        .max(
+          RECORD_REASON_MAX_LENGTH,
+          `A descrição do motivo deve ter no máximo ${RECORD_REASON_MAX_LENGTH} caracteres`,
+        )
+        .optional(),
+    })
+    .refine((body) => body.reason !== "other" || body.details !== undefined, {
+      message: "Descreva o motivo da anulação",
+      path: ["details"],
+    }),
+});
+
+export type VoidRecordData = z.infer<typeof VoidRecordSchema>["body"];

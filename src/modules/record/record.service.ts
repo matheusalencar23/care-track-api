@@ -3,7 +3,7 @@ import * as patientService from "../patient/patient.service.js";
 import * as auditLogService from "../audit/auditLog.service.js";
 import type { PatientRecord, RecordVersion } from "./record.model.js";
 import type { RecordAuthor } from "./record.repository.js";
-import type { UpdateRecordData } from "./record.schema.js";
+import type { UpdateRecordData, VoidRecordData } from "./record.schema.js";
 import {
   ConflictException,
   NotFoundException,
@@ -31,6 +31,9 @@ export const toRecordResponse = ({ record, version }: RecordWithVersion) => ({
   },
   createdAt: record.createdAt,
   editedAt: version.version > 1 ? version.createdAt : null,
+  voidedAt: record.voidedAt,
+  voidReason: record.voidReason,
+  voidReasonDetails: record.voidReasonDetails,
 });
 
 export const toRecordVersionResponse = (version: RecordVersion) => ({
@@ -113,6 +116,10 @@ export const updateRecord = async (
       recordId,
     );
 
+    if (record.voidedAt) {
+      throw new ConflictException(messages.RECORD_VOIDED);
+    }
+
     if (current.version !== data.version) {
       throw new ConflictException(messages.RECORD_VERSION_OUTDATED);
     }
@@ -173,4 +180,54 @@ export const listRecordVersions = async (
   });
 
   return versions.map(toRecordVersionResponse);
+};
+
+export const voidRecord = async (
+  ownerId: string,
+  patientId: string,
+  recordId: string,
+  data: VoidRecordData,
+) => {
+  const voided = await withOwnerScope(ownerId, async () => {
+    await patientService.assertPatientIsActive(ownerId, patientId);
+
+    const { record: current, version } = await findRecordOrThrow(
+      ownerId,
+      patientId,
+      recordId,
+    );
+
+    if (current.voidedAt) {
+      throw new ConflictException(messages.RECORD_ALREADY_VOIDED);
+    }
+
+    const record = await recordRepository.markVoided(
+      current.id,
+      ownerId,
+      ownerId,
+      data.reason,
+      data.details ?? null,
+    );
+
+    if (!record) {
+      throw new ConflictException(messages.RECORD_ALREADY_VOIDED);
+    }
+
+    await auditLogService.record({
+      userId: ownerId,
+      action: "record.void",
+      resourceType: "record",
+      resourceId: record.id,
+      patientId,
+    });
+
+    return { record, version };
+  });
+  AppLogger.info("Record voided", {
+    recordId: voided.record.id,
+    patientId,
+    reason: data.reason,
+  });
+
+  return toRecordResponse(voided);
 };

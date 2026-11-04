@@ -18,6 +18,7 @@ export const AUDIT_ACTIONS = [
   "record.create",
   "record.update",
   "record.list_versions",
+  "record.void",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

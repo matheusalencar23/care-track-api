@@ -254,14 +254,11 @@ describe("records tables", () => {
     ["UPDATE record_versions SET content = 'Reescrito'"],
     ["DELETE FROM record_versions"],
     ["TRUNCATE record_versions"],
-  ])(
-    "should not let even the schema owner run %s",
-    async (statement) => {
-      await insertRecord();
+  ])("should not let even the schema owner run %s", async (statement) => {
+    await insertRecord();
 
-      await expect(adminQuery(statement)).rejects.toThrow("append-only");
-    },
-  );
+    await expect(adminQuery(statement)).rejects.toThrow("append-only");
+  });
 
   it.each([
     ["name", "'Outra pessoa', coren, coren_state"],
@@ -283,6 +280,85 @@ describe("records tables", () => {
       ).rejects.toThrow("must match the current data of the user");
     },
   );
+
+  describe("voiding", () => {
+    const VOID_RECORD = `
+      UPDATE records
+      SET voided_at = '2000-01-01', voided_by = owner_id,
+        void_reason = $2, void_reason_details = $3
+      WHERE id = $1
+      RETURNING voided_at, now() AS server_time`;
+
+    it("should let the API void a record with the server time", async () => {
+      const recordId = await insertRecord();
+
+      const result = await inScope(ownerId, () =>
+        client.query(VOID_RECORD, [recordId, "duplicate", null]),
+      );
+
+      const [row] = result.rows;
+      expect(row.voided_at).toEqual(row.server_time);
+    });
+
+    it.each([
+      ["UPDATE records SET void_reason = 'duplicate'"],
+      ["UPDATE records SET void_reason_details = 'Outro texto'"],
+      [
+        "UPDATE records SET voided_at = NULL, voided_by = NULL, void_reason = NULL, void_reason_details = NULL",
+      ],
+    ])(
+      "should not let even the schema owner change a voided record: %s",
+      async (statement) => {
+        const recordId = await insertRecord();
+        await adminQuery(VOID_RECORD, [recordId, "other", "Teste"]);
+
+        await expect(adminQuery(statement)).rejects.toThrow(
+          "cannot change or be restored",
+        );
+      },
+    );
+
+    it("should not add a version to a voided record, even for the schema owner", async () => {
+      const recordId = await insertRecord();
+      await adminQuery(VOID_RECORD, [recordId, "duplicate", null]);
+
+      await expect(
+        adminQuery(INSERT_VERSION, [ownerId, recordId, "Texto novo", null]),
+      ).rejects.toThrow("cannot receive new versions");
+    });
+
+    it.each([
+      [
+        "a void without reason",
+        "UPDATE records SET voided_at = now(), voided_by = owner_id",
+        "records_void",
+      ],
+      [
+        "a reason without void",
+        "UPDATE records SET void_reason = 'duplicate'",
+        "records_void",
+      ],
+      [
+        "'other' without details",
+        "UPDATE records SET voided_at = now(), voided_by = owner_id, void_reason = 'other'",
+        "records_void_reason_details",
+      ],
+      [
+        "blank details",
+        "UPDATE records SET voided_at = now(), voided_by = owner_id, void_reason = 'other', void_reason_details = '  '",
+        "records_void_reason_details",
+      ],
+      [
+        "details without void",
+        "UPDATE records SET void_reason_details = 'Texto'",
+        "records_void_reason_details",
+      ],
+    ])("should reject %s", async (_case, statement, constraint) => {
+      await insertRecord();
+
+      await expect(adminQuery(statement)).rejects.toThrow(constraint);
+    });
+  });
 
   it("should allow a version without text, for records with only files", async () => {
     await insertRecord(null);

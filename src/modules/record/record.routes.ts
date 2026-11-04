@@ -5,6 +5,7 @@ import {
   CreateRecordSchema,
   ListRecordVersionsSchema,
   UpdateRecordSchema,
+  VoidRecordSchema,
 } from "./record.schema.js";
 import { schemaValidationMiddleware } from "../../middlewares/schemaValidation.middleware.js";
 
@@ -26,6 +27,12 @@ routes.get(
   "/:recordId/versions",
   schemaValidationMiddleware(ListRecordVersionsSchema),
   recordController.listVersions,
+);
+
+routes.post(
+  "/:recordId/void",
+  schemaValidationMiddleware(VoidRecordSchema),
+  recordController.voidRecord,
 );
 
 export default routes;

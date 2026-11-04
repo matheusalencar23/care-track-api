@@ -4,6 +4,7 @@ import {
   CreateRecordSchema,
   ListRecordVersionsSchema,
   UpdateRecordSchema,
+  VoidRecordSchema,
 } from "../../src/modules/record/record.schema.js";
 
 const params = { id: "0195f3a2-7c4e-7b1a-9d2e-3f4a5b6c7d8e" };
@@ -103,5 +104,37 @@ describe("ListRecordVersionsSchema", () => {
         params: { ...recordParams, recordId: "1" },
       }).success,
     ).toBe(false);
+  });
+});
+
+const voidErrors = (body: unknown) => {
+  const result = VoidRecordSchema.safeParse({ params: recordParams, body });
+  return result.success ? [] : result.error.issues.map((i) => i.message);
+};
+
+describe("VoidRecordSchema", () => {
+  it.each([
+    [{ reason: "wrong_patient" }],
+    [{ reason: "duplicate" }],
+    [{ reason: "duplicate", details: "Registrado duas vezes" }],
+    [{ reason: "other", details: "Registro de teste" }],
+  ])("should accept %o", (body) => {
+    expect(voidErrors(body)).toEqual([]);
+  });
+
+  it.each([
+    [{}, "Motivo da anulação inválido"],
+    [{ reason: "mistake" }, "Motivo da anulação inválido"],
+    [{ reason: "other" }, "Descreva o motivo da anulação"],
+    [
+      { reason: "other", details: "   " },
+      "A descrição do motivo não pode ficar em branco",
+    ],
+    [
+      { reason: "duplicate", details: "a".repeat(501) },
+      "A descrição do motivo deve ter no máximo 500 caracteres",
+    ],
+  ])("should reject %o", (body, message) => {
+    expect(voidErrors(body)).toContain(message);
   });
 });

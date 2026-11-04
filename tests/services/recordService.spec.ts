@@ -5,6 +5,7 @@ import {
   createRecord,
   listRecordVersions,
   updateRecord,
+  voidRecord,
 } from "../../src/modules/record/record.service.js";
 import * as recordRepository from "../../src/modules/record/record.repository.js";
 import * as patientService from "../../src/modules/patient/patient.service.js";
@@ -20,6 +21,7 @@ import { withOwnerScope } from "../../src/db/db.js";
 vi.mock("../../src/modules/record/record.repository.js", () => ({
   save: vi.fn(),
   saveVersion: vi.fn(),
+  markVoided: vi.fn(),
   findByIdForPatient: vi.fn(),
   listVersions: vi.fn(),
 }));
@@ -58,6 +60,16 @@ const author = {
   corenState: "SP" as const,
 };
 
+const voidedAt = new Date("2026-11-04T09:00:00.000Z");
+
+const buildVoided = () => ({
+  ...buildSaved().record,
+  voidedAt,
+  voidedBy: author.id,
+  voidReason: "other" as const,
+  voidReasonDetails: "Registro de teste",
+});
+
 const buildSaved = (version = 1, versionCreatedAt = createdAt) =>
   ({
     record: {
@@ -66,6 +78,10 @@ const buildSaved = (version = 1, versionCreatedAt = createdAt) =>
       patientId,
       authorId: author.id,
       createdAt,
+      voidedAt: null,
+      voidedBy: null,
+      voidReason: null,
+      voidReasonDetails: null,
     },
     version: {
       id: "version-1",
@@ -106,6 +122,9 @@ describe("recordService", () => {
         },
         createdAt,
         editedAt: null,
+        voidedAt: null,
+        voidReason: null,
+        voidReasonDetails: null,
       });
       expect(withOwnerScope).toHaveBeenCalledWith(
         "owner-1",
@@ -255,6 +274,19 @@ describe("recordService", () => {
       expect(recordRepository.saveVersion).not.toHaveBeenCalled();
     });
 
+    it("should throw ConflictException when the record is voided", async () => {
+      vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue({
+        ...buildSaved(),
+        record: buildVoided(),
+      });
+
+      const promise = updateRecord(author, patientId, "record-1", edit);
+
+      await expect(promise).rejects.toBeInstanceOf(ConflictException);
+      await expect(promise).rejects.toThrow(messages.RECORD_VOIDED);
+      expect(recordRepository.saveVersion).not.toHaveBeenCalled();
+    });
+
     it("should throw ConflictException when the edit is based on an outdated version", async () => {
       vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue(
         buildSaved(3),
@@ -333,6 +365,105 @@ describe("recordService", () => {
       await expect(
         listRecordVersions("owner-1", patientId, "record-1"),
       ).rejects.toBeInstanceOf(NotFoundException);
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+  });
+  describe("voidRecord", () => {
+    const data = { reason: "other" as const, details: "Registro de teste" };
+
+    beforeEach(() => {
+      vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue(
+        buildSaved(),
+      );
+      vi.mocked(recordRepository.markVoided).mockResolvedValue(buildVoided());
+    });
+
+    it("should void the record in the owner scope and record the audit", async () => {
+      const record = await voidRecord("owner-1", patientId, "record-1", data);
+
+      expect(record).toMatchObject({
+        id: "record-1",
+        content: "Paciente estável",
+        voidedAt,
+        voidReason: "other",
+        voidReasonDetails: "Registro de teste",
+      });
+      expect(withOwnerScope).toHaveBeenCalledWith(
+        "owner-1",
+        expect.any(Function),
+      );
+      expect(patientService.assertPatientIsActive).toHaveBeenCalledWith(
+        "owner-1",
+        patientId,
+      );
+      expect(recordRepository.markVoided).toHaveBeenCalledWith(
+        "record-1",
+        "owner-1",
+        "owner-1",
+        "other",
+        "Registro de teste",
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith({
+        userId: "owner-1",
+        action: "record.void",
+        resourceType: "record",
+        resourceId: "record-1",
+        patientId,
+      });
+    });
+
+    it("should save no details when none are given", async () => {
+      await voidRecord("owner-1", patientId, "record-1", {
+        reason: "duplicate",
+      });
+
+      expect(recordRepository.markVoided).toHaveBeenCalledWith(
+        "record-1",
+        "owner-1",
+        "owner-1",
+        "duplicate",
+        null,
+      );
+    });
+
+    it("should not void when the patient is not active", async () => {
+      vi.mocked(patientService.assertPatientIsActive).mockRejectedValueOnce(
+        new ConflictException("Paciente arquivado"),
+      );
+
+      await expect(
+        voidRecord("owner-1", patientId, "record-1", data),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(recordRepository.markVoided).not.toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException when the record is not found", async () => {
+      vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue(null);
+
+      await expect(
+        voidRecord("owner-1", patientId, "record-1", data),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(recordRepository.markVoided).not.toHaveBeenCalled();
+    });
+
+    it("should throw ConflictException when the record is already voided", async () => {
+      vi.mocked(recordRepository.findByIdForPatient).mockResolvedValue({
+        ...buildSaved(),
+        record: buildVoided(),
+      });
+
+      const promise = voidRecord("owner-1", patientId, "record-1", data);
+
+      await expect(promise).rejects.toThrow(messages.RECORD_ALREADY_VOIDED);
+      expect(recordRepository.markVoided).not.toHaveBeenCalled();
+    });
+
+    it("should throw ConflictException when another request voided it first", async () => {
+      vi.mocked(recordRepository.markVoided).mockResolvedValue(null);
+
+      await expect(
+        voidRecord("owner-1", patientId, "record-1", data),
+      ).rejects.toThrow(messages.RECORD_ALREADY_VOIDED);
       expect(auditLogService.record).not.toHaveBeenCalled();
     });
   });
