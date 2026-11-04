@@ -15,8 +15,8 @@ if (API_DOCS_ENABLED) {
 }
 
 routes.use("/users", generalLimiter, userRoutes);
-routes.use("/auth", generalLimiter, authRoutes);
-routes.use("/patients", generalLimiter, patientRoutes);
+routes.use("/auth", authRoutes);
+routes.use("/patients", patientRoutes);
 
 routes.get("/health", async (_req, res) => {
   const isDbConnected = await isDbHealthy();

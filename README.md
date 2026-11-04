@@ -87,20 +87,20 @@ Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um c
 | POST   | `/api/v1/auth/signin`                             | Login, grava o cookie de autenticação   | não         | 100/h e 10/15min |
 | POST   | `/api/v1/auth/forgot-password`                    | Envia o link de redefinição de senha    | não         | 100/h e 5/15min  |
 | POST   | `/api/v1/auth/reset-password`                     | Define a nova senha a partir do token   | não         | 100/h e 10/15min |
-| POST   | `/api/v1/auth/signout`                            | Logout, remove o cookie                 | sim         | 100/h            |
-| GET    | `/api/v1/auth/me`                                 | Retorna o usuário autenticado           | sim         | 100/h            |
-| POST   | `/api/v1/patients`                                | Cadastra um paciente                    | sim         | 100/h            |
-| GET    | `/api/v1/patients`                                | Lista pacientes (paginada, com busca)   | sim         | 100/h            |
-| GET    | `/api/v1/patients/:id`                            | Consulta um paciente                    | sim         | 100/h            |
-| PUT    | `/api/v1/patients/:id`                            | Edita os dados cadastrais               | sim         | 100/h            |
-| POST   | `/api/v1/patients/:id/archive`                    | Arquiva um paciente                     | sim         | 100/h            |
-| POST   | `/api/v1/patients/:id/unarchive`                  | Reativa um paciente arquivado           | sim         | 100/h            |
-| GET    | `/api/v1/patients/:id/consents`                   | Histórico de consentimentos do paciente | sim         | 100/h            |
-| POST   | `/api/v1/patients/:id/consents`                   | Registra um consentimento               | sim         | 100/h            |
-| POST   | `/api/v1/patients/:id/consents/:consentId/revoke` | Revoga um consentimento                 | sim         | 100/h            |
+| POST   | `/api/v1/auth/signout`                            | Logout, remove o cookie                 | sim         | 300/min/usuário  |
+| GET    | `/api/v1/auth/me`                                 | Retorna o usuário autenticado           | sim         | 300/min/usuário  |
+| POST   | `/api/v1/patients`                                | Cadastra um paciente                    | sim         | 300/min/usuário  |
+| GET    | `/api/v1/patients`                                | Lista pacientes (paginada, com busca)   | sim         | 300/min/usuário  |
+| GET    | `/api/v1/patients/:id`                            | Consulta um paciente                    | sim         | 300/min/usuário  |
+| PUT    | `/api/v1/patients/:id`                            | Edita os dados cadastrais               | sim         | 300/min/usuário  |
+| POST   | `/api/v1/patients/:id/archive`                    | Arquiva um paciente                     | sim         | 300/min/usuário  |
+| POST   | `/api/v1/patients/:id/unarchive`                  | Reativa um paciente arquivado           | sim         | 300/min/usuário  |
+| GET    | `/api/v1/patients/:id/consents`                   | Histórico de consentimentos do paciente | sim         | 300/min/usuário  |
+| POST   | `/api/v1/patients/:id/consents`                   | Registra um consentimento               | sim         | 300/min/usuário  |
+| POST   | `/api/v1/patients/:id/consents/:consentId/revoke` | Revoga um consentimento                 | sim         | 300/min/usuário  |
 | GET    | `/api/v1/health`                                  | Health check (API, banco e versão)      | não         | —                |
 
-Os limites são por IP e ficam desativados com `NODE_ENV=development`. O login só é aceito depois que o e-mail for confirmado. O `/users/resend` responde 200 mesmo para e-mails não cadastrados (exceto quando estoura o limite por IP, que retorna 429) e só envia um novo e-mail se o anterior tiver mais de 60 segundos.
+Nas rotas públicas, os limites são por IP. Nas autenticadas, o limite é por usuário (300 requisições por minuto) e não consome o limite por IP, porque numa instituição todos os profissionais podem sair pelo mesmo IP. Todos ficam desativados com `NODE_ENV=development`. O login só é aceito depois que o e-mail for confirmado. O `/users/resend` responde 200 mesmo para e-mails não cadastrados (exceto quando estoura o limite por IP, que retorna 429) e só envia um novo e-mail se o anterior tiver mais de 60 segundos.
 
 O `signup` recebe `{ name, email, password, coren, corenState }`: `coren` é o número de inscrição (só dígitos) e `corenState` a UF do conselho regional (`SP`, `RJ`...). Os dois voltam também no `/auth/me` e identificam a enfermeira como autora dos registros.
 

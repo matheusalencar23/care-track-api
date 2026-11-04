@@ -33,4 +33,29 @@ describe("rate limits", () => {
     const blocked = await attempt().expect(429);
     expect(blocked.body.message).toBe(messages.TOO_MANY_REQUESTS);
   });
+
+  it("should limit authenticated routes per user instead of per IP", async () => {
+    await createVerifiedUser();
+    await createVerifiedUser({ email: "joana@example.com", coren: "654321" });
+
+    const maria = request.agent(app);
+    await maria
+      .post(`${API}/auth/signin`)
+      .send({ email: userData.email, password: userData.password })
+      .expect(200);
+
+    for (let i = 0; i < 300; i++) {
+      await maria.get(`${API}/patients`).expect(200);
+    }
+
+    const blocked = await maria.get(`${API}/patients`).expect(429);
+    expect(blocked.body.message).toBe(messages.TOO_MANY_REQUESTS);
+
+    const joana = request.agent(app);
+    await joana
+      .post(`${API}/auth/signin`)
+      .send({ email: "joana@example.com", password: userData.password })
+      .expect(200);
+    await joana.get(`${API}/patients`).expect(200);
+  });
 });
