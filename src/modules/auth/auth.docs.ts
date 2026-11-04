@@ -1,5 +1,7 @@
+import z from "zod";
 import {
   ApiOperation,
+  component,
   emptyResponse,
   errorResponse,
   validationErrorResponse,
@@ -8,6 +10,18 @@ import { UserSchema } from "../user/user.docs.js";
 import { SigninSchema } from "../user/user.schema.js";
 import { ForgotPasswordSchema, ResetPasswordSchema } from "./auth.schema.js";
 
+const sessionExpiresAt = z.iso.datetime().meta({
+  description:
+    "Quando a sessão expira se não houver outra requisição autenticada antes.",
+});
+
+const SessionSchema = component("Session", z.object({ sessionExpiresAt }));
+
+const CurrentUserSchema = component(
+  "CurrentUser",
+  UserSchema.extend({ sessionExpiresAt }),
+);
+
 export const authOperations: ApiOperation[] = [
   {
     method: "post",
@@ -15,11 +29,12 @@ export const authOperations: ApiOperation[] = [
     tag: "Autenticação",
     summary: "Faz login",
     description:
-      "Grava a sessão no cookie httpOnly `token` (1 hora). Exige o e-mail confirmado.",
+      "Grava a sessão no cookie httpOnly `token`. Exige o e-mail confirmado. A sessão expira após 30 minutos sem requisições autenticadas ou 12 horas após o login.",
     request: SigninSchema,
     responses: {
       200: {
         description: "Login feito.",
+        schema: SessionSchema,
         headers: {
           "Set-Cookie": {
             description: "Cookie httpOnly `token` com o JWT da sessão.",
@@ -47,7 +62,10 @@ export const authOperations: ApiOperation[] = [
     summary: "Dados da enfermeira autenticada",
     authenticated: true,
     responses: {
-      200: { description: "Enfermeira autenticada.", schema: UserSchema },
+      200: {
+        description: "Enfermeira autenticada, com a expiração da sessão.",
+        schema: CurrentUserSchema,
+      },
     },
   },
   {

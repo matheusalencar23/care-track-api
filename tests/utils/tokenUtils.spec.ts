@@ -4,6 +4,8 @@ import { generateToken, verifyToken } from "../../src/utils/token.utils.js";
 import { JWT_SECRET } from "../../src/config/secrets.js";
 import { UnauthorizedException } from "../../src/shared/exceptions/index.js";
 
+const inOneHour = () => Math.floor(Date.now() / 1000) + 3600;
+
 describe("tokenUtils", () => {
   describe("generateToken", () => {
     it("should generate a valid token", () => {
@@ -12,10 +14,18 @@ describe("tokenUtils", () => {
         email: "user@example.com",
       };
 
-      const token = generateToken(payload);
+      const token = generateToken(payload, inOneHour());
 
       expect(token).toBeTypeOf("string");
       expect(token.split(".")).toHaveLength(3);
+    });
+
+    it("should expire at the given time", () => {
+      const expiresAt = inOneHour();
+
+      const token = generateToken({ sub: "123" }, expiresAt);
+
+      expect(verifyToken(token).exp).toBe(expiresAt);
     });
   });
 
@@ -26,7 +36,7 @@ describe("tokenUtils", () => {
         email: "user@example.com",
       };
 
-      const token = generateToken(payload);
+      const token = generateToken(payload, inOneHour());
 
       const result = verifyToken(token);
 

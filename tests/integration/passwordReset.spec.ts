@@ -45,6 +45,8 @@ describe("password reset", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
 
+    await oldSession.get(`${API}/auth/me`).expect(200);
+
     const reset = await request(app)
       .post(`${API}/auth/reset-password`)
       .send({ token, password: newPassword });

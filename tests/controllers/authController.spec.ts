@@ -45,8 +45,9 @@ describe("signin", () => {
     vi.clearAllMocks();
   });
 
-  it("should login and set authentication cookie", async () => {
-    vi.mocked(login).mockResolvedValue("jwt-token");
+  it("should login, set the session cookie and return its expiration", async () => {
+    const expiresAt = new Date("2026-11-04T12:30:00.000Z");
+    vi.mocked(login).mockResolvedValue({ token: "jwt-token", expiresAt });
 
     const req = createMockRequest({
       body: {
@@ -68,11 +69,16 @@ describe("signin", () => {
       expect.objectContaining({
         httpOnly: true,
         sameSite: "strict",
-        maxAge: 3600000,
+        expires: expiresAt,
       }),
     );
-
-    expect(res.send).toHaveBeenCalled();
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "X-Session-Expires-At",
+      expiresAt.toISOString(),
+    );
+    expect(res.json).toHaveBeenCalledWith({
+      sessionExpiresAt: expiresAt.toISOString(),
+    });
 
     expect(next).not.toHaveBeenCalled();
   });
@@ -97,7 +103,7 @@ describe("signin", () => {
     expect(next).toHaveBeenCalledWith(error);
 
     expect(res.cookie).not.toHaveBeenCalled();
-    expect(res.send).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
 });
 
@@ -106,7 +112,7 @@ describe("me", () => {
     vi.clearAllMocks();
   });
 
-  it("should return the authenticated user's public data", async () => {
+  it("should return the authenticated user's public data and session expiration", async () => {
     const req = createMockRequest({
       user: {
         id: "123",
@@ -115,6 +121,7 @@ describe("me", () => {
         coren: "123456",
         corenState: "SP",
       },
+      sessionExpiresAt: new Date("2026-11-04T12:30:00.000Z"),
     });
 
     const res = createMockResponse();
@@ -127,6 +134,7 @@ describe("me", () => {
       email: "john@example.com",
       coren: "123456",
       corenState: "SP",
+      sessionExpiresAt: "2026-11-04T12:30:00.000Z",
     });
 
     expect(next).not.toHaveBeenCalled();

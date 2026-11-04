@@ -17,6 +17,7 @@ vi.mock("../../src/modules/user/user.repository.js", () => ({
 
 vi.mock("../../src/utils/token.utils.js", () => ({
   verifyToken: vi.fn(),
+  generateToken: vi.fn(() => "renewed-token"),
 }));
 
 vi.mock("../../src/shared/appLogger.js", () => ({
@@ -45,7 +46,10 @@ describe("authenticationMiddleware", () => {
   });
 
   it("should call next with UnauthorizedException when the token does not resolve to a user", async () => {
-    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ sub: "123" } as never);
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({
+      sub: "123",
+      iat: Math.floor(Date.now() / 1000),
+    } as never);
     vi.mocked(userRepository.findById).mockResolvedValue(null as never);
 
     const req = createMockRequest({ cookies: { token: "valid-token" } });
@@ -58,7 +62,10 @@ describe("authenticationMiddleware", () => {
   });
 
   it("should attach the user to the request and call next when the token is valid", async () => {
-    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ sub: "123" } as never);
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({
+      sub: "123",
+      iat: Math.floor(Date.now() / 1000),
+    } as never);
     vi.mocked(userRepository.findById).mockResolvedValue({
       id: "123",
       name: "John Doe",
@@ -83,6 +90,86 @@ describe("authenticationMiddleware", () => {
       corenState: "SP",
     });
     expect(next).toHaveBeenCalledWith();
+  });
+
+  it("should renew the session keeping the login time", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const authTime = now - 60 * 60;
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({
+      sub: "123",
+      auth_time: authTime,
+      iat: now - 60,
+    } as never);
+    vi.mocked(userRepository.findById).mockResolvedValue({
+      id: "123",
+      passwordChangedAt: null,
+    } as never);
+
+    const req = createMockRequest({ cookies: { token: "valid-token" } });
+    const res = createMockResponse();
+    const next = createMockNext();
+
+    await authenticationMiddleware(req, res, next);
+
+    expect(tokenUtils.generateToken).toHaveBeenCalledWith(
+      { sub: "123", auth_time: authTime },
+      expect.any(Number),
+    );
+    expect(res.cookie).toHaveBeenCalledWith(
+      "token",
+      "renewed-token",
+      expect.objectContaining({ httpOnly: true, sameSite: "strict" }),
+    );
+    expect(res.getHeader("X-Session-Expires-At")).toBe(
+      req.sessionExpiresAt?.toISOString(),
+    );
+    expect(req.sessionExpiresAt!.getTime()).toBeGreaterThan(Date.now());
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("should use the issue time as login time for tokens without auth_time", async () => {
+    const issuedAt = Math.floor(Date.now() / 1000) - 60;
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({
+      sub: "123",
+      iat: issuedAt,
+    } as never);
+    vi.mocked(userRepository.findById).mockResolvedValue({
+      id: "123",
+      passwordChangedAt: null,
+    } as never);
+
+    const req = createMockRequest({ cookies: { token: "legacy-token" } });
+    const next = createMockNext();
+
+    await authenticationMiddleware(req, createMockResponse(), next);
+
+    expect(tokenUtils.generateToken).toHaveBeenCalledWith(
+      { sub: "123", auth_time: issuedAt },
+      expect.any(Number),
+    );
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("should reject a renewed session whose login happened before the last password change", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({
+      sub: "123",
+      auth_time: now - 60,
+      iat: now,
+    } as never);
+    vi.mocked(userRepository.findById).mockResolvedValue({
+      id: "123",
+      passwordChangedAt: new Date((now - 30) * 1000),
+    } as never);
+
+    const req = createMockRequest({ cookies: { token: "renewed-token" } });
+    const res = createMockResponse();
+    const next = createMockNext();
+
+    await authenticationMiddleware(req, res, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+    expect(res.cookie).not.toHaveBeenCalled();
   });
 
   it("should call next with UnauthorizedException when the token has no subject", async () => {
@@ -112,7 +199,10 @@ describe("authenticationMiddleware", () => {
   });
 
   it("should call next with a generic HttpException for unexpected errors", async () => {
-    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ sub: "123" } as never);
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({
+      sub: "123",
+      iat: Math.floor(Date.now() / 1000),
+    } as never);
     vi.mocked(userRepository.findById).mockRejectedValue(
       new Error("DB is down"),
     );

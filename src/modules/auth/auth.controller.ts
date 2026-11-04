@@ -3,7 +3,7 @@ import { AppLogger } from "../../shared/appLogger.js";
 import { errorDetails } from "../../shared/errorDetails.js";
 import * as authService from "./auth.service.js";
 import * as auditLogService from "../audit/auditLog.service.js";
-import { NODE_ENV } from "../../config/secrets.js";
+import { clearSessionCookie, setSessionCookie } from "./session.js";
 import { UnauthorizedException } from "../../shared/exceptions/index.js";
 import { messages } from "../../shared/messages.js";
 
@@ -16,16 +16,11 @@ export const signin = async (
   AppLogger.info("Signing in...");
 
   try {
-    const token = await authService.login(email, password);
+    const session = await authService.login(email, password);
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 3600000,
-    });
+    setSessionCookie(res, session);
 
-    res.send();
+    res.json({ sessionExpiresAt: session.expiresAt.toISOString() });
   } catch (err) {
     AppLogger.error("Error signing in", errorDetails(err));
     return next(err);
@@ -37,7 +32,7 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
   const user = req.user;
 
   try {
-    if (!user) {
+    if (!user || !req.sessionExpiresAt) {
       throw new UnauthorizedException(messages.UNAUTHORIZED);
     }
 
@@ -46,6 +41,7 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
       email: user.email,
       coren: user.coren,
       corenState: user.corenState,
+      sessionExpiresAt: req.sessionExpiresAt.toISOString(),
     });
   } catch (err) {
     AppLogger.error("Error getting me", errorDetails(err));
@@ -73,11 +69,7 @@ export const signout = async (
       resourceId: user.id,
     });
 
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    clearSessionCookie(res);
 
     return res.status(204).send();
   } catch (err) {
@@ -110,11 +102,7 @@ export const resetPassword = async (
   try {
     await authService.resetPassword(token, password);
 
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    clearSessionCookie(res);
 
     return res.json();
   } catch (err) {

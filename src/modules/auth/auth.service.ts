@@ -5,7 +5,7 @@ import {
   BadRequestException,
   UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
-import { generateToken } from "../../utils/token.utils.js";
+import { createSession } from "./session.js";
 import { comparePassword } from "../../utils/crypt.utils.js";
 import { withTransaction } from "../../db/db.js";
 import { messages } from "../../shared/messages.js";
@@ -34,8 +34,7 @@ export const login = async (email: string, password: string) => {
     resourceId: user.id,
   });
 
-  const token = generateToken({ sub: user.id });
-  return token;
+  return createSession(user.id);
 };
 
 export const requestPasswordReset = async (email: string) => {

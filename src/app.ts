@@ -6,6 +6,7 @@ import { CORS_ORIGIN } from "./config/secrets.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { requestLoggerMiddleware } from "./middlewares/requestLogger.middleware.js";
 import routes from "./routes.js";
+import { SESSION_EXPIRES_HEADER } from "./modules/auth/session.js";
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type"],
+    exposedHeaders: [SESSION_EXPIRES_HEADER],
   }),
 );
 app.use(express.json());

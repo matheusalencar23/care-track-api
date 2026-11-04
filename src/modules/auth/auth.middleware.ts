@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { JwtPayload } from "jsonwebtoken";
 import { AppLogger } from "../../shared/appLogger.js";
 import { errorDetails } from "../../shared/errorDetails.js";
 import * as userRepository from "../user/user.repository.js";
@@ -8,19 +9,25 @@ import {
   HttpException,
 } from "../../shared/exceptions/index.js";
 import { messages } from "../../shared/messages.js";
+import { createSession, SESSION_COOKIE, setSessionCookie } from "./session.js";
 
-const isIssuedBeforePasswordChange = (
-  issuedAt: number | undefined,
+const isLoggedInBeforePasswordChange = (
+  authTime: number,
   passwordChangedAt: Date | null,
 ) => {
   if (!passwordChangedAt) {
     return false;
   }
 
-  return (
-    issuedAt === undefined ||
-    issuedAt < Math.floor(passwordChangedAt.getTime() / 1000)
-  );
+  return authTime < Math.floor(passwordChangedAt.getTime() / 1000);
+};
+
+const resolveAuthTime = (payload: JwtPayload): number | undefined => {
+  if (typeof payload["auth_time"] === "number") {
+    return payload["auth_time"];
+  }
+
+  return payload.iat;
 };
 
 export const authenticationMiddleware = async (
@@ -29,18 +36,16 @@ export const authenticationMiddleware = async (
   next: NextFunction,
 ) => {
   try {
-    if (!req.cookies.token) {
-      return next(new UnauthorizedException(messages.UNAUTHORIZED));
-    }
-
-    const token = req.cookies.token;
+    const token = req.cookies[SESSION_COOKIE];
     if (!token) {
       return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
     const verifiedToken = verifyToken(token);
 
-    if (typeof verifiedToken.sub !== "string") {
+    const authTime = resolveAuthTime(verifiedToken);
+
+    if (typeof verifiedToken.sub !== "string" || authTime === undefined) {
       return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
@@ -50,9 +55,7 @@ export const authenticationMiddleware = async (
       return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
-    if (
-      isIssuedBeforePasswordChange(verifiedToken.iat, user.passwordChangedAt)
-    ) {
+    if (isLoggedInBeforePasswordChange(authTime, user.passwordChangedAt)) {
       return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
@@ -63,6 +66,11 @@ export const authenticationMiddleware = async (
       coren: user.coren,
       corenState: user.corenState,
     };
+
+    const session = createSession(user.id, authTime);
+    setSessionCookie(res, session);
+    req.sessionExpiresAt = session.expiresAt;
+
     next();
   } catch (err) {
     if (err instanceof HttpException) {

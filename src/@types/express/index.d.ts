@@ -10,6 +10,7 @@ declare global {
         coren: string;
         corenState: BrazilianState;
       };
+      sessionExpiresAt?: Date;
     }
   }
 }

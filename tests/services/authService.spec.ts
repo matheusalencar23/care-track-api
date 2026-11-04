@@ -103,7 +103,7 @@ describe("authService", () => {
       expect(tokenUtils.generateToken).not.toHaveBeenCalled();
     });
 
-    it("should return a token when credentials are valid", async () => {
+    it("should return a new session when credentials are valid", async () => {
       vi.mocked(comparePassword).mockResolvedValue(true);
 
       vi.mocked(userRepository.findByEmail).mockResolvedValue({
@@ -114,10 +114,14 @@ describe("authService", () => {
 
       vi.mocked(tokenUtils.generateToken).mockReturnValue("jwt-token");
 
-      const token = await login("john@example.com", "password123");
+      const session = await login("john@example.com", "password123");
 
-      expect(token).toBe("jwt-token");
-      expect(tokenUtils.generateToken).toHaveBeenCalledWith({ sub: "123" });
+      expect(session.token).toBe("jwt-token");
+      expect(session.expiresAt.getTime()).toBeGreaterThan(Date.now());
+      expect(tokenUtils.generateToken).toHaveBeenCalledWith(
+        { sub: "123", auth_time: expect.any(Number) },
+        expect.any(Number),
+      );
       expect(auditLogService.record).toHaveBeenCalledWith({
         userId: "123",
         action: "auth.signin",

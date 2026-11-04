@@ -3,10 +3,11 @@ import { UnauthorizedException } from "../shared/exceptions/index.js";
 import { JWT_SECRET } from "../config/secrets.js";
 import { messages } from "../shared/messages.js";
 
-export const generateToken = (body: Record<string, unknown>) => {
-  return jwt.sign(body, JWT_SECRET, {
-    expiresIn: "1h",
-  });
+export const generateToken = (
+  body: Record<string, unknown>,
+  expiresAt: number,
+) => {
+  return jwt.sign({ ...body, exp: expiresAt }, JWT_SECRET);
 };
 
 export const verifyToken = (token: string): JwtPayload => {

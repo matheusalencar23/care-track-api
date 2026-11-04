@@ -13,6 +13,11 @@ import {
   waitForConfirmationToken,
 } from "./helpers.js";
 import { countRows, testDb } from "./database.js";
+import {
+  SESSION_IDLE_TIMEOUT_SECONDS,
+  SESSION_MAX_DURATION_SECONDS,
+} from "../../src/modules/auth/session.js";
+import { generateToken, verifyToken } from "../../src/utils/token.utils.js";
 
 describe("authentication flow", () => {
   it("should sign up, confirm the email, sign in, read the session and sign out", async () => {
@@ -56,6 +61,10 @@ describe("authentication flow", () => {
     expect(signin.status).toBe(200);
     expect(signin.headers["set-cookie"]?.[0]).toMatch(/^token=.+HttpOnly/);
 
+    expect(signin.body.sessionExpiresAt).toBe(
+      signin.headers["x-session-expires-at"],
+    );
+
     const me = await agent.get(`${API}/auth/me`);
     expect(me.status).toBe(200);
     expect(me.body).toEqual({
@@ -63,10 +72,14 @@ describe("authentication flow", () => {
       email: userData.email,
       coren: userData.coren,
       corenState: userData.corenState,
+      sessionExpiresAt: me.headers["x-session-expires-at"],
     });
 
     const signout = await agent.post(`${API}/auth/signout`);
     expect(signout.status).toBe(204);
+    expect(signout.headers["x-session-expires-at"]).toBeUndefined();
+    expect(signout.headers["set-cookie"]).toHaveLength(1);
+    expect(signout.headers["set-cookie"]?.[0]).toMatch(/^token=;/);
 
     const afterSignout = await agent.get(`${API}/auth/me`);
     expect(afterSignout.status).toBe(401);
@@ -153,5 +166,63 @@ describe("authentication flow", () => {
 
     expect(response.status).toBe(200);
     expect(sendConfirmationEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("sliding session", () => {
+  const nowInSeconds = () => Math.floor(Date.now() / 1000);
+
+  const sessionCookie = (userId: string, authTime: number, expiresAt: number) =>
+    `token=${generateToken({ sub: userId, auth_time: authTime }, expiresAt)}`;
+
+  it("should renew the session on every authenticated request", async () => {
+    const user = await createVerifiedUser();
+    const authTime = nowInSeconds() - 60 * 60;
+
+    const response = await request(app)
+      .get(`${API}/patients`)
+      .set("Cookie", sessionCookie(user.id, authTime, nowInSeconds() + 60));
+
+    expect(response.status).toBe(200);
+
+    const expiresAt = Date.parse(response.headers["x-session-expires-at"]);
+    const idleLimit = (nowInSeconds() + SESSION_IDLE_TIMEOUT_SECONDS) * 1000;
+    expect(Math.abs(expiresAt - idleLimit)).toBeLessThanOrEqual(1000);
+
+    const cookie = response.headers["set-cookie"]?.[0] ?? "";
+    expect(cookie).toMatch(/^token=.+HttpOnly/);
+    expect(cookie).toMatch(/SameSite=Strict/);
+
+    const renewed = verifyToken(cookie.split(";")[0]!.slice("token=".length));
+    expect(renewed["auth_time"]).toBe(authTime);
+  });
+
+  it("should not extend the session past the maximum duration", async () => {
+    const user = await createVerifiedUser();
+    const authTime = nowInSeconds() - SESSION_MAX_DURATION_SECONDS + 5 * 60;
+
+    const response = await request(app)
+      .get(`${API}/auth/me`)
+      .set("Cookie", sessionCookie(user.id, authTime, nowInSeconds() + 60));
+
+    expect(response.status).toBe(200);
+    expect(response.body.sessionExpiresAt).toBe(
+      new Date((authTime + SESSION_MAX_DURATION_SECONDS) * 1000).toISOString(),
+    );
+  });
+
+  it("should reject an expired session without renewing it", async () => {
+    const user = await createVerifiedUser();
+
+    const response = await request(app)
+      .get(`${API}/auth/me`)
+      .set(
+        "Cookie",
+        sessionCookie(user.id, nowInSeconds() - 60 * 60, nowInSeconds() - 1),
+      );
+
+    expect(response.status).toBe(401);
+    expect(response.headers["set-cookie"]).toBeUndefined();
+    expect(response.headers["x-session-expires-at"]).toBeUndefined();
   });
 });

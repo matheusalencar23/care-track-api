@@ -77,7 +77,7 @@ Commits seguem o padrão Conventional Commits, validado pelo commitlint — ver 
 
 ## Endpoints
 
-Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um cookie httpOnly `token` (JWT válido por 1h), gravado no signin; não há header `Authorization`.
+Todas as rotas ficam sob o prefixo `/api/v1`. A autenticação é feita por um cookie httpOnly `token` (JWT), gravado no signin; não há header `Authorization`. A sessão é deslizante: cada requisição autenticada a renova, e ela expira após 30 minutos sem requisições ou 12 horas após o login. A expiração vem no header `X-Session-Expires-At` e no campo `sessionExpiresAt` do signin e do `/auth/me`.
 
 | Método | Rota                                              | Descrição                               | Autenticado | Rate limit       |
 | ------ | ------------------------------------------------- | --------------------------------------- | ----------- | ---------------- |

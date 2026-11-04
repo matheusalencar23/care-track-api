@@ -35,7 +35,7 @@ const tags = [
   {
     name: "Autenticação",
     description:
-      "Login, sessão e recuperação de senha. A sessão é um cookie httpOnly `token`, válido por 1 hora.",
+      "Login, sessão e recuperação de senha. A sessão é um cookie httpOnly `token` deslizante: cada requisição autenticada a renova, e ela expira após 30 minutos sem requisições ou 12 horas após o login. Toda resposta autenticada de sucesso traz o header `X-Session-Expires-At`.",
   },
   {
     name: "Pacientes",
@@ -147,24 +147,51 @@ const defaultResponses = (
   500: { description: "Erro inesperado.", schema: MessageSchema },
 });
 
+const sessionHeaders = {
+  "X-Session-Expires-At": {
+    description:
+      "Expiração da sessão, já renovada por esta requisição (ISO 8601).",
+    schema: { type: "string", format: "date-time" },
+  },
+};
+
+const withSessionHeaders = (
+  operation: ApiOperation,
+  status: string,
+  response: ApiResponse,
+) => {
+  const isSuccess = Number(status) >= 200 && Number(status) < 300;
+  const hasSession =
+    operation.authenticated || operation.path === "/auth/signin";
+
+  if (!isSuccess || !hasSession || operation.path === "/auth/signout") {
+    return response.headers;
+  }
+
+  return { ...response.headers, ...sessionHeaders };
+};
+
 const buildResponses = (operation: ApiOperation) => {
   const responses = { ...defaultResponses(operation), ...operation.responses };
 
   return Object.fromEntries(
     Object.entries(responses)
       .sort(([a], [b]) => Number(a) - Number(b))
-      .map(([status, response]) => [
-        status,
-        {
-          description: response.description,
-          ...(response.headers && { headers: response.headers }),
-          ...(response.schema && {
-            content: {
-              "application/json": { schema: componentRef(response.schema) },
-            },
-          }),
-        },
-      ]),
+      .map(([status, response]) => {
+        const headers = withSessionHeaders(operation, status, response);
+        return [
+          status,
+          {
+            description: response.description,
+            ...(headers && { headers }),
+            ...(response.schema && {
+              content: {
+                "application/json": { schema: componentRef(response.schema) },
+              },
+            }),
+          },
+        ];
+      }),
   );
 };
 
