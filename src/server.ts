@@ -1,8 +1,8 @@
 import { AppLogger } from "./shared/appLogger.js";
-import { connectDb } from "./db/db.js";
+import { errorDetails } from "./shared/errorDetails.js";
+import { closeDb, connectDb } from "./db/db.js";
 import app from "./app.js";
 import { PORT } from "./config/secrets.js";
-import mongoose from "mongoose";
 
 const bootstrap = async () => {
   try {
@@ -21,7 +21,7 @@ const bootstrap = async () => {
       AppLogger.info(`${signal} received, shutting down gracefully...`);
 
       server.close(async () => {
-        await mongoose.connection.close();
+        await closeDb();
         AppLogger.info("Shutdown complete");
         process.exit(0);
       });
@@ -35,15 +35,15 @@ const bootstrap = async () => {
     process.on("SIGINT", () => shutdown("SIGINT"));
 
     process.on("unhandledRejection", (reason) => {
-      AppLogger.error(`Unhandled rejection: ${reason}`);
+      AppLogger.error("Unhandled rejection", errorDetails(reason));
     });
 
     process.on("uncaughtException", (err) => {
-      AppLogger.error(`Uncaught exception: ${err}`);
+      AppLogger.error("Uncaught exception", errorDetails(err));
       setImmediate(() => process.exit(1));
     });
   } catch (err) {
-    AppLogger.error(`Failed to start the server:  ${err}`);
+    AppLogger.error("Failed to start the server", errorDetails(err));
     process.exit(1);
   }
 };

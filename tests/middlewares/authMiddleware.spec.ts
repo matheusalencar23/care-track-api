@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import jwt from "jsonwebtoken";
 import { authenticationMiddleware } from "../../src/modules/auth/auth.middleware.js";
-import User from "../../src/modules/user/user.model.js";
+import * as userRepository from "../../src/modules/user/user.repository.js";
 import * as tokenUtils from "../../src/utils/token.utils.js";
 import { UnauthorizedException } from "../../src/shared/exceptions/index.js";
 import {
@@ -11,8 +11,8 @@ import {
   createMockResponse,
 } from "../helpers/expressMock.js";
 
-vi.mock("../../src/modules/user/user.model.js", () => ({
-  default: { findOne: vi.fn() },
+vi.mock("../../src/modules/user/user.repository.js", () => ({
+  findById: vi.fn(),
 }));
 
 vi.mock("../../src/utils/token.utils.js", () => ({
@@ -45,8 +45,8 @@ describe("authenticationMiddleware", () => {
   });
 
   it("should call next with UnauthorizedException when the token does not resolve to a user", async () => {
-    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ _id: "123" } as never);
-    vi.mocked(User.findOne).mockResolvedValue(null as never);
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ sub: "123" } as never);
+    vi.mocked(userRepository.findById).mockResolvedValue(null as never);
 
     const req = createMockRequest({ cookies: { token: "valid-token" } });
     const res = createMockResponse();
@@ -58,12 +58,12 @@ describe("authenticationMiddleware", () => {
   });
 
   it("should attach the user to the request and call next when the token is valid", async () => {
-    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ _id: "123" } as never);
-    vi.mocked(User.findOne).mockResolvedValue({
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ sub: "123" } as never);
+    vi.mocked(userRepository.findById).mockResolvedValue({
       id: "123",
       name: "John Doe",
       email: "john@example.com",
-      password: "hashed-password",
+      passwordHash: "hashed-password",
       coren: "123456",
       corenState: "SP",
     } as never);
@@ -74,7 +74,7 @@ describe("authenticationMiddleware", () => {
 
     await authenticationMiddleware(req, res, next);
 
-    expect(User.findOne).toHaveBeenCalledWith({ _id: "123" });
+    expect(userRepository.findById).toHaveBeenCalledWith("123");
     expect(req.user).toEqual({
       id: "123",
       name: "John Doe",
@@ -83,6 +83,18 @@ describe("authenticationMiddleware", () => {
       corenState: "SP",
     });
     expect(next).toHaveBeenCalledWith();
+  });
+
+  it("should call next with UnauthorizedException when the token has no subject", async () => {
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ _id: "123" } as never);
+
+    const req = createMockRequest({ cookies: { token: "legacy-token" } });
+    const next = createMockNext();
+
+    await authenticationMiddleware(req, createMockResponse(), next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+    expect(userRepository.findById).not.toHaveBeenCalled();
   });
 
   it("should call next with UnauthorizedException (not a generic 500) when the token is expired", async () => {
@@ -100,8 +112,10 @@ describe("authenticationMiddleware", () => {
   });
 
   it("should call next with a generic HttpException for unexpected errors", async () => {
-    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ _id: "123" } as never);
-    vi.mocked(User.findOne).mockRejectedValue(new Error("DB is down"));
+    vi.mocked(tokenUtils.verifyToken).mockReturnValue({ sub: "123" } as never);
+    vi.mocked(userRepository.findById).mockRejectedValue(
+      new Error("DB is down"),
+    );
 
     const req = createMockRequest({ cookies: { token: "valid-token" } });
     const res = createMockResponse();
@@ -122,7 +136,7 @@ describe("authenticationMiddleware", () => {
       actualTokenUtils.verifyToken,
     );
 
-    const forgedToken = jwt.sign({ _id: "123" }, "wrong-secret");
+    const forgedToken = jwt.sign({ sub: "123" }, "wrong-secret");
 
     const req = createMockRequest({ cookies: { token: forgedToken } });
     const res = createMockResponse();
@@ -134,16 +148,16 @@ describe("authenticationMiddleware", () => {
     expect(next).not.toHaveBeenCalledWith(
       expect.objectContaining({ statusCode: 500 }),
     );
-    expect(User.findOne).not.toHaveBeenCalled();
+    expect(userRepository.findById).not.toHaveBeenCalled();
   });
 
   it("should reject a token issued before the last password change", async () => {
     const issuedAt = Math.floor(Date.now() / 1000) - 60;
     vi.mocked(tokenUtils.verifyToken).mockReturnValue({
-      _id: "123",
+      sub: "123",
       iat: issuedAt,
     } as never);
-    vi.mocked(User.findOne).mockResolvedValue({
+    vi.mocked(userRepository.findById).mockResolvedValue({
       id: "123",
       passwordChangedAt: new Date((issuedAt + 1) * 1000),
     } as never);
@@ -160,10 +174,10 @@ describe("authenticationMiddleware", () => {
   it("should accept a token issued in the same second as the password change", async () => {
     const issuedAt = Math.floor(Date.now() / 1000);
     vi.mocked(tokenUtils.verifyToken).mockReturnValue({
-      _id: "123",
+      sub: "123",
       iat: issuedAt,
     } as never);
-    vi.mocked(User.findOne).mockResolvedValue({
+    vi.mocked(userRepository.findById).mockResolvedValue({
       id: "123",
       name: "John Doe",
       email: "john@example.com",

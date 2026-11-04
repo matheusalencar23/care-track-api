@@ -1,11 +1,13 @@
 import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../../shared/appLogger.js";
-import User from "../user/user.model.js";
+import { errorDetails } from "../../shared/errorDetails.js";
+import * as userRepository from "../user/user.repository.js";
 import { verifyToken } from "../../utils/token.utils.js";
 import {
   UnauthorizedException,
   HttpException,
 } from "../../shared/exceptions/index.js";
+import { messages } from "../../shared/messages.js";
 
 const isIssuedBeforePasswordChange = (
   issuedAt: number | undefined,
@@ -28,28 +30,30 @@ export const authenticationMiddleware = async (
 ) => {
   try {
     if (!req.cookies.token) {
-      return next(new UnauthorizedException("Invalid token"));
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
     const token = req.cookies.token;
     if (!token) {
-      return next(new UnauthorizedException("Invalid token"));
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
     const verifiedToken = verifyToken(token);
 
-    const user = await User.findOne({
-      _id: verifiedToken._id,
-    });
+    if (typeof verifiedToken.sub !== "string") {
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
+    }
+
+    const user = await userRepository.findById(verifiedToken.sub);
 
     if (!user) {
-      return next(new UnauthorizedException("Invalid token"));
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
     if (
       isIssuedBeforePasswordChange(verifiedToken.iat, user.passwordChangedAt)
     ) {
-      return next(new UnauthorizedException("Invalid token"));
+      return next(new UnauthorizedException(messages.UNAUTHORIZED));
     }
 
     req.user = {
@@ -65,7 +69,7 @@ export const authenticationMiddleware = async (
       return next(err);
     }
 
-    AppLogger.error(`Authentication error: ${err}`);
-    return next(new HttpException("Internal Server Error", 500, null));
+    AppLogger.error("Authentication error", errorDetails(err));
+    return next(new HttpException(messages.INTERNAL_SERVER_ERROR, 500, null));
   }
 };

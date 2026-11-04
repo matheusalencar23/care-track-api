@@ -1,96 +1,63 @@
-import mongoose, { Document } from "mongoose";
+import { index, pgEnum, pgTable, text, uuid } from "drizzle-orm/pg-core";
+import { createdAt, id } from "../../db/columns.js";
+import { users } from "../user/user.model.js";
 
 export const AUDIT_ACTIONS = [
   "auth.signin",
   "auth.signout",
   "auth.password_reset",
+  "patient.create",
+  "patient.list",
+  "patient.read",
+  "patient.update",
+  "patient.archive",
+  "patient.unarchive",
+  "consent.grant",
+  "consent.list",
+  "consent.revoke",
+  "record.create",
+  "record.list",
+  "record.update",
+  "record.list_versions",
+  "record.void",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
-export const AUDIT_RESOURCE_TYPES = ["user"] as const;
+export const AUDIT_RESOURCE_TYPES = [
+  "user",
+  "patient",
+  "consent",
+  "record",
+] as const;
 
 export type AuditResourceType = (typeof AUDIT_RESOURCE_TYPES)[number];
 
-export interface IAuditLog extends Document {
-  userId: mongoose.Types.ObjectId;
-  action: AuditAction;
-  resourceType: AuditResourceType;
-  resourceId: mongoose.Types.ObjectId | null;
-  patientId: mongoose.Types.ObjectId | null;
-  requestId: string | null;
-  ip: string | null;
-  createdAt: Date;
-}
-
-const auditLogSchema = new mongoose.Schema<IAuditLog>(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    action: {
-      type: String,
-      required: true,
-      enum: AUDIT_ACTIONS,
-    },
-    resourceType: {
-      type: String,
-      required: true,
-      enum: AUDIT_RESOURCE_TYPES,
-    },
-    resourceId: {
-      type: mongoose.Schema.Types.ObjectId,
-      default: null,
-    },
-    patientId: {
-      type: mongoose.Schema.Types.ObjectId,
-      default: null,
-    },
-    requestId: {
-      type: String,
-      default: null,
-    },
-    ip: {
-      type: String,
-      default: null,
-    },
-  },
-  {
-    timestamps: { createdAt: true, updatedAt: false },
-  },
+export const auditActionEnum = pgEnum("audit_action", AUDIT_ACTIONS);
+export const auditResourceTypeEnum = pgEnum(
+  "audit_resource_type",
+  AUDIT_RESOURCE_TYPES,
 );
 
-auditLogSchema.index({ userId: 1, createdAt: -1 });
-auditLogSchema.index({ patientId: 1, createdAt: -1 });
-
-const rejectChange = () => {
-  throw new Error("Audit logs are append-only");
-};
-
-auditLogSchema.pre(
-  [
-    "updateOne",
-    "updateMany",
-    "findOneAndUpdate",
-    "replaceOne",
-    "findOneAndReplace",
-    "deleteOne",
-    "deleteMany",
-    "findOneAndDelete",
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: id(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    action: auditActionEnum().notNull(),
+    resourceType: auditResourceTypeEnum().notNull(),
+    resourceId: uuid(),
+    patientId: uuid(),
+    requestId: text(),
+    ip: text(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index().on(table.userId, table.createdAt.desc()),
+    index().on(table.patientId, table.createdAt.desc()),
   ],
-  rejectChange,
 );
 
-auditLogSchema.pre("save", function () {
-  if (!this.isNew) {
-    rejectChange();
-  }
-});
-
-auditLogSchema.pre("bulkWrite", rejectChange);
-
-const AuditLog = mongoose.model("AuditLog", auditLogSchema);
-
-export default AuditLog;
+export type AuditLog = typeof auditLogs.$inferSelect;

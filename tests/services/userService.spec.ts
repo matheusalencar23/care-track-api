@@ -13,6 +13,7 @@ import * as emailVerificationTokenService from "../../src/modules/email/emailVer
 
 import { sendConfirmationEmail } from "../../src/services/email/email.service.js";
 import { AppLogger } from "../../src/shared/appLogger.js";
+import { withTransaction } from "../../src/db/db.js";
 
 vi.mock("../../src/shared/appLogger.js", () => ({
   AppLogger: {
@@ -27,7 +28,13 @@ vi.mock("../../src/modules/user/user.repository.js", () => ({
   findByEmail: vi.fn(),
   findById: vi.fn(),
   save: vi.fn(),
+  markEmailVerified: vi.fn(),
 }));
+
+vi.mock(
+  "../../src/db/db.js",
+  async () => (await import("../helpers/dbMock.js")).dbModuleMock,
+);
 
 vi.mock("../../src/modules/email/emailVerificationToken.service.js", () => ({
   createEmailVerificationToken: vi.fn(),
@@ -124,7 +131,7 @@ describe("userService", () => {
       await vi.waitFor(() => {
         expect(AppLogger.error).toHaveBeenCalledWith(
           "Error sending confirmation email",
-          { userId: "123" },
+          expect.objectContaining({ userId: "123" }),
         );
       });
     });
@@ -145,7 +152,7 @@ describe("userService", () => {
       await vi.waitFor(() => {
         expect(AppLogger.error).toHaveBeenCalledWith(
           "Error sending confirmation email",
-          { userId: "123" },
+          expect.objectContaining({ userId: "123" }),
         );
       });
 
@@ -154,7 +161,7 @@ describe("userService", () => {
   });
 
   describe("validateUser", () => {
-    const tokenRecord = { userId: { toString: () => "123" } };
+    const tokenRecord = { userId: "123" };
 
     beforeEach(() => {
       vi.clearAllMocks();
@@ -165,8 +172,10 @@ describe("userService", () => {
         tokenRecord as never,
       );
 
-      const user = { emailVerifiedAt: null as Date | null, save: vi.fn() };
-      vi.mocked(userRepository.findById).mockResolvedValue(user as never);
+      vi.mocked(userRepository.findById).mockResolvedValue({
+        id: "123",
+        emailVerifiedAt: null,
+      } as never);
 
       await validateUser("valid-token");
 
@@ -174,15 +183,21 @@ describe("userService", () => {
         "valid-token",
       );
       expect(userRepository.findById).toHaveBeenCalledWith("123");
-      expect(user.emailVerifiedAt).toBeInstanceOf(Date);
-      expect(user.save).toHaveBeenCalledOnce();
+      expect(userRepository.markEmailVerified).toHaveBeenCalledWith(
+        "123",
+        expect.any(Date),
+      );
       expect(
         emailVerificationTokenService.markTokenAsUsed,
       ).toHaveBeenCalledWith(tokenRecord);
+      expect(withTransaction).toHaveBeenCalledOnce();
       expect(
         vi.mocked(emailVerificationTokenService.markTokenAsUsed).mock
           .invocationCallOrder[0],
-      ).toBeGreaterThan(user.save.mock.invocationCallOrder[0]!);
+      ).toBeGreaterThan(
+        vi.mocked(userRepository.markEmailVerified).mock
+          .invocationCallOrder[0]!,
+      );
     });
 
     it("should throw and keep the token when the user no longer exists", async () => {
@@ -192,7 +207,7 @@ describe("userService", () => {
       vi.mocked(userRepository.findById).mockResolvedValue(null);
 
       await expect(validateUser("valid-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
       expect(
         emailVerificationTokenService.markTokenAsUsed,
@@ -204,12 +219,12 @@ describe("userService", () => {
         tokenRecord as never,
       );
       vi.mocked(userRepository.findById).mockResolvedValue({
+        id: "123",
         emailVerifiedAt: new Date(),
-        save: vi.fn(),
       } as never);
 
       await expect(validateUser("valid-token")).rejects.toThrow(
-        "Email already verified!",
+        messages.EMAIL_ALREADY_VERIFIED,
       );
       expect(
         emailVerificationTokenService.markTokenAsUsed,
@@ -221,9 +236,12 @@ describe("userService", () => {
         tokenRecord as never,
       );
       vi.mocked(userRepository.findById).mockResolvedValue({
+        id: "123",
         emailVerifiedAt: null,
-        save: vi.fn().mockRejectedValue(new Error("DB is down")),
       } as never);
+      vi.mocked(userRepository.markEmailVerified).mockRejectedValueOnce(
+        new Error("DB is down"),
+      );
 
       await expect(validateUser("valid-token")).rejects.toThrow("DB is down");
       expect(
@@ -251,7 +269,7 @@ describe("userService", () => {
       vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
 
       await expect(resendValidation("ghost@example.com")).rejects.toThrow(
-        "User not found!",
+        messages.USER_NOT_FOUND,
       );
 
       expect(sendConfirmationEmail).not.toHaveBeenCalled();
@@ -265,7 +283,7 @@ describe("userService", () => {
       } as never);
 
       await expect(resendValidation("john@example.com")).rejects.toThrow(
-        "Email already verified!",
+        messages.EMAIL_ALREADY_VERIFIED,
       );
 
       expect(sendConfirmationEmail).not.toHaveBeenCalled();

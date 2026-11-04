@@ -1,44 +1,22 @@
-import mongoose, { Document } from "mongoose";
+import { index, pgTable, text, uuid } from "drizzle-orm/pg-core";
+import { createdAt, id, timestamptz } from "../../db/columns.js";
+import { users } from "../user/user.model.js";
 
-export interface IPasswordResetToken extends Document {
-  userId: mongoose.Types.ObjectId;
-  tokenHash: string;
-  expiresAt: Date;
-  usedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const passwordResetTokenSchema = new mongoose.Schema<IPasswordResetToken>(
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      index: true,
-    },
-    tokenHash: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    expiresAt: {
-      type: Date,
-      required: true,
-    },
-    usedAt: {
-      type: Date,
-      default: null,
-    },
+    id: id(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id),
+    tokenHash: text()
+      .notNull()
+      .unique("password_reset_tokens_token_hash_unique"),
+    expiresAt: timestamptz().notNull(),
+    usedAt: timestamptz(),
+    createdAt: createdAt(),
   },
-  { timestamps: true },
+  (table) => [index().on(table.userId, table.createdAt.desc())],
 );
 
-passwordResetTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-const PasswordResetToken = mongoose.model(
-  "PasswordResetToken",
-  passwordResetTokenSchema,
-);
-
-export default PasswordResetToken;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;

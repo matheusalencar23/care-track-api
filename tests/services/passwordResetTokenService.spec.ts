@@ -9,6 +9,7 @@ import {
   PASSWORD_RESET_COOLDOWN_MS,
 } from "../../src/modules/auth/passwordResetToken.service.js";
 import * as passwordResetTokenRepository from "../../src/modules/auth/passwordResetToken.repository.js";
+import { messages } from "../../src/shared/messages.js";
 
 vi.mock("../../src/modules/auth/passwordResetToken.repository.js", () => ({
   save: vi.fn(),
@@ -62,7 +63,7 @@ describe("passwordResetTokenService", () => {
       );
 
       await expect(findValidToken("unknown-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
     });
 
@@ -73,7 +74,7 @@ describe("passwordResetTokenService", () => {
       } as never);
 
       await expect(findValidToken("used-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
     });
 
@@ -84,7 +85,7 @@ describe("passwordResetTokenService", () => {
       } as never);
 
       await expect(findValidToken("expired-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
     });
   });

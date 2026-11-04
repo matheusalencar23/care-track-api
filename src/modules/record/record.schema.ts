@@ -1,0 +1,96 @@
+import z from "zod";
+import { RECORD_VOID_REASONS } from "./record.model.js";
+
+export const RECORD_CONTENT_MAX_LENGTH = 20_000;
+export const RECORD_REASON_MAX_LENGTH = 500;
+
+const patientParamsSchema = z.object({
+  id: z.uuid("ID de paciente inválido"),
+});
+
+const recordParamsSchema = patientParamsSchema.extend({
+  recordId: z.uuid("ID de registro inválido"),
+});
+
+const contentSchema = z
+  .string("Conteúdo do registro inválido")
+  .trim()
+  .nonempty("O conteúdo do registro é obrigatório")
+  .max(
+    RECORD_CONTENT_MAX_LENGTH,
+    `O conteúdo do registro deve ter no máximo ${RECORD_CONTENT_MAX_LENGTH} caracteres`,
+  );
+
+export const CreateRecordSchema = z.object({
+  params: patientParamsSchema,
+  body: z.object({
+    content: contentSchema,
+  }),
+});
+
+export const ListRecordsQuerySchema = z.object({
+  status: z.enum(["active", "voided"], "Status inválido").default("active"),
+  cursor: z.uuid("Cursor inválido").optional(),
+  limit: z.coerce
+    .number("Limite inválido")
+    .int("Limite inválido")
+    .min(1, "O limite deve ser entre 1 e 100")
+    .max(100, "O limite deve ser entre 1 e 100")
+    .default(20),
+});
+
+export type ListRecordsQuery = z.infer<typeof ListRecordsQuerySchema>;
+
+export const ListRecordsSchema = z.object({
+  params: patientParamsSchema,
+  query: ListRecordsQuerySchema,
+});
+
+export const UpdateRecordSchema = z.object({
+  params: recordParamsSchema,
+  body: z.object({
+    content: contentSchema,
+    version: z
+      .number("Versão do registro inválida")
+      .int("Versão do registro inválida")
+      .positive("Versão do registro inválida"),
+    reason: z
+      .string("Motivo inválido")
+      .trim()
+      .nonempty("O motivo não pode ficar em branco")
+      .max(
+        RECORD_REASON_MAX_LENGTH,
+        `O motivo deve ter no máximo ${RECORD_REASON_MAX_LENGTH} caracteres`,
+      )
+      .optional(),
+  }),
+});
+
+export type UpdateRecordData = z.infer<typeof UpdateRecordSchema>["body"];
+
+export const ListRecordVersionsSchema = z.object({
+  params: recordParamsSchema,
+});
+
+export const VoidRecordSchema = z.object({
+  params: recordParamsSchema,
+  body: z
+    .object({
+      reason: z.enum(RECORD_VOID_REASONS, "Motivo da anulação inválido"),
+      details: z
+        .string("Descrição do motivo inválida")
+        .trim()
+        .nonempty("A descrição do motivo não pode ficar em branco")
+        .max(
+          RECORD_REASON_MAX_LENGTH,
+          `A descrição do motivo deve ter no máximo ${RECORD_REASON_MAX_LENGTH} caracteres`,
+        )
+        .optional(),
+    })
+    .refine((body) => body.reason !== "other" || body.details !== undefined, {
+      message: "Descreva o motivo da anulação",
+      path: ["details"],
+    }),
+});
+
+export type VoidRecordData = z.infer<typeof VoidRecordSchema>["body"];

@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # Garante que o Dockerfile funciona antes do merge; o release só gera a
       # imagem depois de criar a tag

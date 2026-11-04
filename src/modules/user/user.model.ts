@@ -1,71 +1,27 @@
-import mongoose, { Document } from "mongoose";
-import { comparePassword, hashPassword } from "../../utils/crypt.utils.js";
-import {
-  BRAZILIAN_STATES,
-  type BrazilianState,
-} from "../../shared/brazilianStates.js";
+import { sql } from "drizzle-orm";
+import { check, pgEnum, pgTable, text } from "drizzle-orm/pg-core";
+import { BRAZILIAN_STATES } from "../../shared/brazilianStates.js";
+import { createdAt, id, timestamptz, updatedAt } from "../../db/columns.js";
 
-export interface IUser extends Document {
-  name: string;
-  email: string;
-  password: string;
-  coren: string;
-  corenState: BrazilianState;
-  emailVerifiedAt: Date | null;
-  passwordChangedAt: Date | null;
-  authenticate: (password: string) => Promise<boolean>;
-}
+export const brazilianStateEnum = pgEnum("brazilian_state", BRAZILIAN_STATES);
 
-const userSchema = new mongoose.Schema<IUser>(
+export const users = pgTable(
+  "users",
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-      lowercase: true,
-    },
-    password: {
-      type: String,
-      required: true,
-    },
-    coren: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    corenState: {
-      type: String,
-      required: true,
-      enum: BRAZILIAN_STATES,
-    },
-    emailVerifiedAt: {
-      type: Date,
-      default: null,
-    },
-    passwordChangedAt: {
-      type: Date,
-      default: null,
-    },
+    id: id(),
+    name: text().notNull(),
+    email: text().notNull().unique("users_email_unique"),
+    passwordHash: text().notNull(),
+    coren: text().notNull(),
+    corenState: brazilianStateEnum().notNull(),
+    emailVerifiedAt: timestamptz(),
+    passwordChangedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
   },
-  { timestamps: true },
+  (table) => [
+    check("users_email_lowercase", sql`${table.email} = lower(${table.email})`),
+  ],
 );
 
-userSchema.methods.authenticate = async function (password: string) {
-  return await comparePassword(password, this.password);
-};
-
-userSchema.pre("save", async function () {
-  if (this.isModified("password")) {
-    this.password = await hashPassword(this.password);
-  }
-});
-
-const User = mongoose.model("User", userSchema);
-
-export default User;
+export type User = typeof users.$inferSelect;

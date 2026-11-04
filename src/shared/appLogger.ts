@@ -1,8 +1,7 @@
 import pino from "pino";
-import { NODE_ENV } from "../config/secrets.js";
 import { getRequestId } from "./requestContext.js";
 
-const isDevelopment = NODE_ENV === "development";
+const isDevelopment = (process.env.NODE_ENV ?? "development") === "development";
 
 type LogContext = Record<string, unknown>;
 

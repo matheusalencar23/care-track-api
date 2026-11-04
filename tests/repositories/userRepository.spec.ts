@@ -1,26 +1,31 @@
-import mongoose from "mongoose";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import User from "../../src/modules/user/user.model.js";
+import { getDb } from "../../src/db/db.js";
 import { save } from "../../src/modules/user/user.repository.js";
 import { BadRequestException } from "../../src/shared/exceptions/index.js";
 import { messages } from "../../src/shared/messages.js";
+import { uniqueViolation } from "../helpers/dbMock.js";
 
-vi.mock("../../src/modules/user/user.model.js", () => ({
-  default: vi.fn(),
+vi.mock(
+  "../../src/db/db.js",
+  async () => (await import("../helpers/dbMock.js")).dbModuleMock,
+);
+
+vi.mock("../../src/utils/crypt.utils.js", () => ({
+  hashPassword: vi.fn(async (password: string) => `hashed:${password}`),
 }));
 
-const mockUserSave = (saveImpl: () => Promise<unknown>) => {
-  const userDoc = { save: vi.fn(saveImpl) };
-  vi.mocked(User).mockImplementation(function () {
-    return userDoc;
+const mockInsert = (returning: () => Promise<unknown[]>) => {
+  const values = vi.fn(() => ({ returning: vi.fn(returning) }));
+  vi.mocked(getDb).mockReturnValue({
+    insert: vi.fn(() => ({ values })),
   } as never);
-  return userDoc;
+  return values;
 };
 
 const userData = {
-  name: "John Doe",
-  email: "john@example.com",
+  name: "  John Doe ",
+  email: " John@Example.com ",
   password: "password123",
   coren: "123456",
   corenState: "SP" as const,
@@ -32,23 +37,24 @@ describe("userRepository", () => {
   });
 
   describe("save", () => {
-    it("should save and return the user", async () => {
-      const userDoc = mockUserSave(async () => undefined);
+    it("should store the hashed password and the normalized name and email", async () => {
+      const user = { id: "123" };
+      const values = mockInsert(async () => [user]);
 
-      const result = await save(userData);
+      await expect(save(userData)).resolves.toBe(user);
 
-      expect(User).toHaveBeenCalledWith(userData);
-      expect(userDoc.save).toHaveBeenCalledOnce();
-      expect(result).toBe(userDoc);
+      expect(values).toHaveBeenCalledWith({
+        name: "John Doe",
+        email: "john@example.com",
+        passwordHash: "hashed:password123",
+        coren: "123456",
+        corenState: "SP",
+      });
     });
 
     it("should throw the same error as an already registered email on duplicate key", async () => {
-      mockUserSave(async () => {
-        throw new mongoose.mongo.MongoServerError({
-          message:
-            'E11000 duplicate key error collection: users index: email_1 dup key: { email: "john@example.com" }',
-          code: 11000,
-        });
+      mockInsert(async () => {
+        throw uniqueViolation();
       });
 
       const promise = save(userData);
@@ -61,7 +67,7 @@ describe("userRepository", () => {
 
     it("should rethrow other errors unchanged", async () => {
       const error = new Error("DB is down");
-      mockUserSave(async () => {
+      mockInsert(async () => {
         throw error;
       });
 

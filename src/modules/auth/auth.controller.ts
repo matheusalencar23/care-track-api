@@ -1,9 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../../shared/appLogger.js";
+import { errorDetails } from "../../shared/errorDetails.js";
 import * as authService from "./auth.service.js";
 import * as auditLogService from "../audit/auditLog.service.js";
 import { NODE_ENV } from "../../config/secrets.js";
 import { UnauthorizedException } from "../../shared/exceptions/index.js";
+import { messages } from "../../shared/messages.js";
 
 export const signin = async (
   req: Request,
@@ -25,7 +27,7 @@ export const signin = async (
 
     res.send();
   } catch (err) {
-    AppLogger.error(`Error signing in: ${err}`);
+    AppLogger.error("Error signing in", errorDetails(err));
     return next(err);
   }
 };
@@ -36,7 +38,7 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
 
   try {
     if (!user) {
-      throw new UnauthorizedException("Unauthorized");
+      throw new UnauthorizedException(messages.UNAUTHORIZED);
     }
 
     return res.json({
@@ -46,7 +48,7 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
       corenState: user.corenState,
     });
   } catch (err) {
-    AppLogger.error(`Error getting me: ${err}`);
+    AppLogger.error("Error getting me", errorDetails(err));
     return next(err);
   }
 };
@@ -61,7 +63,7 @@ export const signout = async (
 
   try {
     if (!user) {
-      throw new UnauthorizedException("Unauthorized");
+      throw new UnauthorizedException(messages.UNAUTHORIZED);
     }
 
     await auditLogService.record({
@@ -79,7 +81,7 @@ export const signout = async (
 
     return res.status(204).send();
   } catch (err) {
-    AppLogger.error(`Error signing out: ${err}`);
+    AppLogger.error("Error signing out", errorDetails(err));
     return next(err);
   }
 };
@@ -91,10 +93,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
   try {
     await authService.requestPasswordReset(email);
   } catch (err) {
-    AppLogger.error("Error requesting password reset");
-    if (err instanceof Error && err.stack) {
-      AppLogger.error(err.stack);
-    }
+    AppLogger.error("Error requesting password reset", errorDetails(err));
   }
 
   return res.json();

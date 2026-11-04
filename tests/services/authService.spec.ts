@@ -12,6 +12,8 @@ import * as tokenUtils from "../../src/utils/token.utils.js";
 import { messages } from "../../src/shared/messages.js";
 import { AppLogger } from "../../src/shared/appLogger.js";
 import * as auditLogService from "../../src/modules/audit/auditLog.service.js";
+import { comparePassword } from "../../src/utils/crypt.utils.js";
+import { withTransaction } from "../../src/db/db.js";
 
 vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
   record: vi.fn(),
@@ -20,7 +22,17 @@ vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
 vi.mock("../../src/modules/user/user.repository.js", () => ({
   findByEmail: vi.fn(),
   findById: vi.fn(),
+  updatePassword: vi.fn(),
 }));
+
+vi.mock("../../src/utils/crypt.utils.js", () => ({
+  comparePassword: vi.fn(),
+}));
+
+vi.mock(
+  "../../src/db/db.js",
+  async () => (await import("../helpers/dbMock.js")).dbModuleMock,
+);
 
 vi.mock("../../src/modules/auth/passwordResetToken.service.js", () => ({
   createPasswordResetToken: vi.fn(),
@@ -65,7 +77,7 @@ describe("authService", () => {
     it("should throw when the user's email has not been verified yet", async () => {
       vi.mocked(userRepository.findByEmail).mockResolvedValue({
         emailVerifiedAt: null,
-        authenticate: vi.fn(),
+        passwordHash: "hash",
       } as never);
 
       await expect(login("john@example.com", "password123")).rejects.toThrow(
@@ -76,29 +88,28 @@ describe("authService", () => {
     });
 
     it("should throw when the password does not match", async () => {
-      const authenticate = vi.fn().mockResolvedValue(false);
+      vi.mocked(comparePassword).mockResolvedValue(false);
 
       vi.mocked(userRepository.findByEmail).mockResolvedValue({
         emailVerifiedAt: new Date(),
-        authenticate,
+        passwordHash: "hash",
       } as never);
 
       await expect(login("john@example.com", "wrong-password")).rejects.toThrow(
         messages.INVALID_CREDENTIALS,
       );
 
-      expect(authenticate).toHaveBeenCalledWith("wrong-password");
+      expect(comparePassword).toHaveBeenCalledWith("wrong-password", "hash");
       expect(tokenUtils.generateToken).not.toHaveBeenCalled();
     });
 
     it("should return a token when credentials are valid", async () => {
-      const authenticate = vi.fn().mockResolvedValue(true);
+      vi.mocked(comparePassword).mockResolvedValue(true);
 
       vi.mocked(userRepository.findByEmail).mockResolvedValue({
-        _id: "123",
         id: "123",
         emailVerifiedAt: new Date(),
-        authenticate,
+        passwordHash: "hash",
       } as never);
 
       vi.mocked(tokenUtils.generateToken).mockReturnValue("jwt-token");
@@ -106,7 +117,7 @@ describe("authService", () => {
       const token = await login("john@example.com", "password123");
 
       expect(token).toBe("jwt-token");
-      expect(tokenUtils.generateToken).toHaveBeenCalledWith({ _id: "123" });
+      expect(tokenUtils.generateToken).toHaveBeenCalledWith({ sub: "123" });
       expect(auditLogService.record).toHaveBeenCalledWith({
         userId: "123",
         action: "auth.signin",
@@ -116,11 +127,11 @@ describe("authService", () => {
     });
 
     it("should not return a token when the audit log cannot be written", async () => {
+      vi.mocked(comparePassword).mockResolvedValue(true);
       vi.mocked(userRepository.findByEmail).mockResolvedValue({
-        _id: "123",
         id: "123",
         emailVerifiedAt: new Date(),
-        authenticate: vi.fn().mockResolvedValue(true),
+        passwordHash: "hash",
       } as never);
       vi.mocked(auditLogService.record).mockRejectedValueOnce(
         new Error("DB is down"),
@@ -213,40 +224,37 @@ describe("authService", () => {
       await vi.waitFor(() => {
         expect(AppLogger.error).toHaveBeenCalledWith(
           "Error sending password reset email",
-          { userId: "123" },
+          expect.objectContaining({ userId: "123", message: "Resend is down" }),
         );
       });
     });
   });
 
   describe("resetPassword", () => {
-    const tokenRecord = { userId: { toString: () => "123" } };
+    const tokenRecord = { userId: "123" };
 
     beforeEach(() => {
       vi.clearAllMocks();
     });
 
-    it("should set the new password and then invalidate the user's tokens", async () => {
+    it("should set the new password, invalidate the user's tokens and audit in one transaction", async () => {
       vi.mocked(passwordResetTokenService.findValidToken).mockResolvedValue(
         tokenRecord as never,
       );
       const verifiedAt = new Date("2026-01-01");
-      const user = {
+      vi.mocked(userRepository.findById).mockResolvedValue({
         id: "123",
-        password: "old-hash",
-        passwordChangedAt: null as Date | null,
         emailVerifiedAt: verifiedAt,
-        save: vi.fn(),
-      };
-      vi.mocked(userRepository.findById).mockResolvedValue(user as never);
+      } as never);
 
       await resetPassword("valid-token", "new-password");
 
       expect(userRepository.findById).toHaveBeenCalledWith("123");
-      expect(user.password).toBe("new-password");
-      expect(user.passwordChangedAt).toBeInstanceOf(Date);
-      expect(user.emailVerifiedAt).toBe(verifiedAt);
-      expect(user.save).toHaveBeenCalledOnce();
+      expect(userRepository.updatePassword).toHaveBeenCalledWith(
+        "123",
+        "new-password",
+        { passwordChangedAt: expect.any(Date), emailVerifiedAt: verifiedAt },
+      );
       expect(
         passwordResetTokenService.invalidateUserTokens,
       ).toHaveBeenCalledWith("123");
@@ -256,36 +264,43 @@ describe("authService", () => {
         resourceType: "user",
         resourceId: "123",
       });
+      expect(withTransaction).toHaveBeenCalledOnce();
       expect(
         vi.mocked(passwordResetTokenService.invalidateUserTokens).mock
           .invocationCallOrder[0],
-      ).toBeGreaterThan(user.save.mock.invocationCallOrder[0]!);
+      ).toBeGreaterThan(
+        vi.mocked(userRepository.updatePassword).mock.invocationCallOrder[0]!,
+      );
     });
 
     it("should also confirm the email of an unverified user", async () => {
       vi.mocked(passwordResetTokenService.findValidToken).mockResolvedValue(
         tokenRecord as never,
       );
-      const user = {
+      vi.mocked(userRepository.findById).mockResolvedValue({
         id: "123",
-        emailVerifiedAt: null as Date | null,
-        save: vi.fn(),
-      };
-      vi.mocked(userRepository.findById).mockResolvedValue(user as never);
+        emailVerifiedAt: null,
+      } as never);
 
       await resetPassword("valid-token", "new-password");
 
-      expect(user.emailVerifiedAt).toBeInstanceOf(Date);
+      const [, , changes] =
+        vi.mocked(userRepository.updatePassword).mock.calls[0] ?? [];
+      expect(changes?.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(changes?.emailVerifiedAt).toBe(changes?.passwordChangedAt);
     });
 
-    it("should keep the tokens when saving the user fails", async () => {
+    it("should keep the tokens when saving the password fails", async () => {
       vi.mocked(passwordResetTokenService.findValidToken).mockResolvedValue(
         tokenRecord as never,
       );
       vi.mocked(userRepository.findById).mockResolvedValue({
         id: "123",
-        save: vi.fn().mockRejectedValue(new Error("DB is down")),
+        emailVerifiedAt: null,
       } as never);
+      vi.mocked(userRepository.updatePassword).mockRejectedValueOnce(
+        new Error("DB is down"),
+      );
 
       await expect(
         resetPassword("valid-token", "new-password"),
@@ -303,7 +318,7 @@ describe("authService", () => {
 
       await expect(
         resetPassword("valid-token", "new-password"),
-      ).rejects.toThrow("Invalid token!");
+      ).rejects.toThrow(messages.INVALID_LINK_TOKEN);
     });
 
     it("should propagate the error when the token is invalid", async () => {

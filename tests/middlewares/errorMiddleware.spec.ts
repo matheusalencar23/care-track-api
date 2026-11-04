@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { errorMiddleware } from "../../src/middlewares/error.middleware.js";
@@ -7,7 +6,12 @@ import {
   NotFoundException,
 } from "../../src/shared/exceptions/index.js";
 import { AppLogger } from "../../src/shared/appLogger.js";
-import { createMockRequest, createMockResponse } from "../helpers/expressMock.js";
+import {
+  createMockRequest,
+  createMockResponse,
+} from "../helpers/expressMock.js";
+import { messages } from "../../src/shared/messages.js";
+import { uniqueViolation } from "../helpers/dbMock.js";
 
 vi.mock("../../src/shared/appLogger.js", () => ({
   AppLogger: {
@@ -46,7 +50,9 @@ describe("errorMiddleware", () => {
     errorMiddleware(new Error("Something broke"), req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ message: "Internal Server Error" });
+    expect(res.json).toHaveBeenCalledWith({
+      message: messages.INTERNAL_SERVER_ERROR,
+    });
   });
 
   it("should respond with a generic 500 even when the thrown value is not an Error instance", () => {
@@ -57,25 +63,23 @@ describe("errorMiddleware", () => {
     errorMiddleware("just a string", req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ message: "Internal Server Error" });
+    expect(res.json).toHaveBeenCalledWith({
+      message: messages.INTERNAL_SERVER_ERROR,
+    });
   });
 
-  it("should respond with 409 for a Mongo duplicate key error without leaking the duplicated value", () => {
+  it("should respond with 409 for a duplicate key error without leaking the duplicated value", () => {
     const req = createMockRequest({});
     const res = createMockResponse();
     const next = vi.fn();
 
-    const error = new mongoose.mongo.MongoServerError({
-      message:
-        'E11000 duplicate key error collection: users index: email_1 dup key: { email: "john@example.com" }',
-      code: 11000,
-    });
+    const error = uniqueViolation("john@example.com");
 
     errorMiddleware(error, req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "Conflict" }),
+      expect.objectContaining({ message: messages.CONFLICT }),
     );
 
     const responseBody = JSON.stringify(vi.mocked(res.json).mock.calls);
@@ -85,6 +89,22 @@ describe("errorMiddleware", () => {
     ]);
     expect(responseBody).not.toContain("john@example.com");
     expect(logged).not.toContain("john@example.com");
+  });
+
+  it("should not log the query params of an unexpected database error", () => {
+    const error = uniqueViolation("52998224725");
+    error.cause = Object.assign(error.cause as object, { code: "42501" });
+
+    errorMiddleware(
+      error,
+      createMockRequest({}),
+      createMockResponse(),
+      vi.fn(),
+    );
+
+    const logged = JSON.stringify(vi.mocked(AppLogger.error).mock.calls);
+    expect(logged).toContain("42501");
+    expect(logged).not.toContain("52998224725");
   });
 
   it("should log client errors (4xx) as warn", () => {

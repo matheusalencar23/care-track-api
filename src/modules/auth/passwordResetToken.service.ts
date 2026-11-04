@@ -1,6 +1,7 @@
 import * as passwordResetTokenRepository from "./passwordResetToken.repository.js";
 import { UnprocessableEntityException } from "../../shared/exceptions/index.js";
 import { generateRandomToken, hashToken } from "../../utils/crypt.utils.js";
+import { messages } from "../../shared/messages.js";
 
 export const PASSWORD_RESET_COOLDOWN_MS = 60 * 1000;
 export const PASSWORD_RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
@@ -36,7 +37,7 @@ export const findValidToken = async (token: string) => {
     new Date() > passwordResetToken.expiresAt;
 
   if (invalidToken) {
-    throw new UnprocessableEntityException("Invalid token!", []);
+    throw new UnprocessableEntityException(messages.INVALID_LINK_TOKEN, []);
   }
 
   return passwordResetToken;

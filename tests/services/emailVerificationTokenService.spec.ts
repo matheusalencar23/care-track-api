@@ -3,19 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createEmailVerificationToken,
-  deleteVerificationTokenByUserId,
   isOnResendCooldown,
   RESEND_COOLDOWN_MS,
   findValidToken,
   markTokenAsUsed,
 } from "../../src/modules/email/emailVerificationToken.service.js";
 import * as emailVerificationTokenRepository from "../../src/modules/email/emailVerificationToken.repository.js";
+import { messages } from "../../src/shared/messages.js";
 
 vi.mock("../../src/modules/email/emailVerificationToken.repository.js", () => ({
   save: vi.fn(),
   findByToken: vi.fn(),
   findLatestByUserId: vi.fn(),
-  deleteByUserId: vi.fn(),
+  markAsUsed: vi.fn(),
 }));
 
 describe("emailVerificationTokenService", () => {
@@ -39,9 +39,7 @@ describe("emailVerificationTokenService", () => {
 
       expect(userId).toBe("user-123");
       expect(storedHash).not.toBe(token);
-      expect(storedHash).toBe(
-        createHash("sha256").update(token).digest("hex"),
-      );
+      expect(storedHash).toBe(createHash("sha256").update(token).digest("hex"));
       expect(expiresAt).toBeInstanceOf(Date);
       expect((expiresAt as Date).getTime()).toBeGreaterThan(Date.now());
     });
@@ -54,31 +52,35 @@ describe("emailVerificationTokenService", () => {
       );
 
       await expect(findValidToken("unknown-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
     });
 
     it("should throw when the token has already been used", async () => {
-      vi.mocked(emailVerificationTokenRepository.findByToken).mockResolvedValue({
-        usedAt: new Date(),
-        expiresAt: new Date(Date.now() + 60_000),
-        save: vi.fn(),
-      } as never);
+      vi.mocked(emailVerificationTokenRepository.findByToken).mockResolvedValue(
+        {
+          usedAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          save: vi.fn(),
+        } as never,
+      );
 
       await expect(findValidToken("used-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
     });
 
     it("should throw when the token has expired", async () => {
-      vi.mocked(emailVerificationTokenRepository.findByToken).mockResolvedValue({
-        usedAt: null,
-        expiresAt: new Date(Date.now() - 60_000),
-        save: vi.fn(),
-      } as never);
+      vi.mocked(emailVerificationTokenRepository.findByToken).mockResolvedValue(
+        {
+          usedAt: null,
+          expiresAt: new Date(Date.now() - 60_000),
+          save: vi.fn(),
+        } as never,
+      );
 
       await expect(findValidToken("expired-token")).rejects.toThrow(
-        "Invalid token!",
+        messages.INVALID_LINK_TOKEN,
       );
     });
 
@@ -103,13 +105,13 @@ describe("emailVerificationTokenService", () => {
   });
 
   describe("markTokenAsUsed", () => {
-    it("should set usedAt and save the token", async () => {
-      const record = { usedAt: null as Date | null, save: vi.fn() };
+    it("should mark the token as used now", async () => {
+      await markTokenAsUsed({ id: "token-1", usedAt: null } as never);
 
-      await markTokenAsUsed(record as never);
-
-      expect(record.usedAt).toBeInstanceOf(Date);
-      expect(record.save).toHaveBeenCalledOnce();
+      expect(emailVerificationTokenRepository.markAsUsed).toHaveBeenCalledWith(
+        "token-1",
+        expect.any(Date),
+      );
     });
   });
 
@@ -143,20 +145,6 @@ describe("emailVerificationTokenService", () => {
       } as never);
 
       await expect(isOnResendCooldown("user-123")).resolves.toBe(false);
-    });
-  });
-
-  describe("deleteVerificationTokenByUserId", () => {
-    it("should delegate to the repository", async () => {
-      vi.mocked(
-        emailVerificationTokenRepository.deleteByUserId,
-      ).mockResolvedValue({} as never);
-
-      await deleteVerificationTokenByUserId("user-123");
-
-      expect(
-        emailVerificationTokenRepository.deleteByUserId,
-      ).toHaveBeenCalledWith("user-123");
     });
   });
 });
