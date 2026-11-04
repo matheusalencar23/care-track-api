@@ -17,3 +17,6 @@ export const RESEND_API_KEY = requiredEnv("RESEND_API_KEY");
 export const RESEND_EMAIL_ORIGIN = requiredEnv("RESEND_EMAIL_ORIGIN");
 export const EMAIL_VERIFICATION_URL = requiredEnv("EMAIL_VERIFICATION_URL");
 export const PASSWORD_RESET_HOST = requiredEnv("PASSWORD_RESET_HOST");
+export const API_DOCS_ENABLED = process.env.API_DOCS_ENABLED
+  ? process.env.API_DOCS_ENABLED === "true"
+  : NODE_ENV !== "production";

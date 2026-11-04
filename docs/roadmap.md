@@ -60,6 +60,8 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 - [x] Conferir a região do cluster no Atlas; migrar para o Brasil se necessário. (O Atlas saiu com a migração para o Postgres; a escolha do provedor está na Fase 5.)
 - [x] Ajustar `engines` do `package.json` para `^22.14.0 || >=24.10.0` (exigência do semantic-release) e atualizar o Node local.
 
+- [x] Documentação da API (adicionada em 04/11/2026, fora do plano original): OpenAPI 3.1 gerado a partir dos schemas Zod de validação, com Swagger UI em `/api/v1/docs`. Desligada em produção por padrão (`API_DOCS_ENABLED`), e testes garantem que toda rota registrada está documentada.
+
 ### Fase 1 — Pacientes
 
 - [x] Cadastro, listagem paginada com busca, consulta e edição dos dados cadastrais.
