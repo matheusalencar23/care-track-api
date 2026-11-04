@@ -28,6 +28,24 @@ export const CreateRecordSchema = z.object({
   }),
 });
 
+export const ListRecordsQuerySchema = z.object({
+  status: z.enum(["active", "voided"], "Status inválido").default("active"),
+  cursor: z.uuid("Cursor inválido").optional(),
+  limit: z.coerce
+    .number("Limite inválido")
+    .int("Limite inválido")
+    .min(1, "O limite deve ser entre 1 e 100")
+    .max(100, "O limite deve ser entre 1 e 100")
+    .default(20),
+});
+
+export type ListRecordsQuery = z.infer<typeof ListRecordsQuerySchema>;
+
+export const ListRecordsSchema = z.object({
+  params: patientParamsSchema,
+  query: ListRecordsQuerySchema,
+});
+
 export const UpdateRecordSchema = z.object({
   params: recordParamsSchema,
   body: z.object({

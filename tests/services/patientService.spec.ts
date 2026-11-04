@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   archivePatient,
+  assertPatientExists,
   assertPatientIsActive,
   createPatient,
   getPatient,
@@ -205,6 +206,32 @@ describe("patientService", () => {
         NotFoundException,
       );
       expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("assertPatientExists", () => {
+    it("should resolve for a patient of the owner, even archived, without recording", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue({
+        ...patient,
+        archivedAt: new Date(),
+      });
+
+      await expect(
+        assertPatientExists("nurse-1", "patient-1"),
+      ).resolves.toBeUndefined();
+      expect(withOwnerScope).toHaveBeenCalledWith(
+        "nurse-1",
+        expect.any(Function),
+      );
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException when the patient is not found", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(null);
+
+      await expect(
+        assertPatientExists("nurse-1", "patient-1"),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

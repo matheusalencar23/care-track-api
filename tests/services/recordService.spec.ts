@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createRecord,
+  listRecords,
   listRecordVersions,
   updateRecord,
   voidRecord,
@@ -24,10 +25,12 @@ vi.mock("../../src/modules/record/record.repository.js", () => ({
   markVoided: vi.fn(),
   findByIdForPatient: vi.fn(),
   listVersions: vi.fn(),
+  listForPatient: vi.fn(),
 }));
 
 vi.mock("../../src/modules/patient/patient.service.js", () => ({
   assertPatientIsActive: vi.fn(),
+  assertPatientExists: vi.fn(),
 }));
 
 vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
@@ -464,6 +467,68 @@ describe("recordService", () => {
       await expect(
         voidRecord("owner-1", patientId, "record-1", data),
       ).rejects.toThrow(messages.RECORD_ALREADY_VOIDED);
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+  });
+  describe("listRecords", () => {
+    const query = { status: "active" as const, limit: 2 };
+
+    it("should list a page in the owner scope and record the audit", async () => {
+      const saved = buildSaved();
+      vi.mocked(recordRepository.listForPatient).mockResolvedValue({
+        items: [saved],
+        hasMore: false,
+      });
+
+      const page = await listRecords("owner-1", patientId, query);
+
+      expect(page).toEqual({
+        items: [expect.objectContaining({ id: "record-1", version: 1 })],
+        nextCursor: null,
+      });
+      expect(withOwnerScope).toHaveBeenCalledWith(
+        "owner-1",
+        expect.any(Function),
+      );
+      expect(patientService.assertPatientExists).toHaveBeenCalledWith(
+        "owner-1",
+        patientId,
+      );
+      expect(recordRepository.listForPatient).toHaveBeenCalledWith(
+        "owner-1",
+        patientId,
+        query,
+      );
+      expect(auditLogService.record).toHaveBeenCalledWith({
+        userId: "owner-1",
+        action: "record.list",
+        resourceType: "record",
+        patientId,
+      });
+    });
+
+    it("should return the last record as the cursor when there are more pages", async () => {
+      const last = buildSaved();
+      last.record = { ...last.record, id: "record-2" };
+      vi.mocked(recordRepository.listForPatient).mockResolvedValue({
+        items: [buildSaved(), last],
+        hasMore: true,
+      });
+
+      const page = await listRecords("owner-1", patientId, query);
+
+      expect(page.nextCursor).toBe("record-2");
+    });
+
+    it("should not list nor record when the patient is not found", async () => {
+      vi.mocked(patientService.assertPatientExists).mockRejectedValueOnce(
+        new NotFoundException("Paciente não encontrado!"),
+      );
+
+      await expect(
+        listRecords("owner-1", patientId, query),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(recordRepository.listForPatient).not.toHaveBeenCalled();
       expect(auditLogService.record).not.toHaveBeenCalled();
     });
   });

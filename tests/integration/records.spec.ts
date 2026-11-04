@@ -669,3 +669,236 @@ describe("record voiding", () => {
     expect(stored?.voidedAt).toBeNull();
   });
 });
+
+describe("record timeline", () => {
+  type Page = {
+    items: { id: string; content: string }[];
+    nextCursor: string | null;
+  };
+
+  const listRecords = async (
+    agent: Agent,
+    patientId: string,
+    query: Record<string, string | number> = {},
+  ) => {
+    const response = await agent
+      .get(recordsUrl(patientId))
+      .query(query)
+      .expect(200);
+    return response.body as Page;
+  };
+
+  const readAll = async (
+    agent: Agent,
+    patientId: string,
+    query: Record<string, string | number>,
+  ) => {
+    const pages: Page[] = [];
+    let cursor: string | null = null;
+
+    do {
+      const page: Page = await listRecords(agent, patientId, {
+        ...query,
+        ...(cursor && { cursor }),
+      });
+      pages.push(page);
+      cursor = page.nextCursor;
+    } while (cursor);
+
+    return pages;
+  };
+
+  it("should list the current version of each record, newest first", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const first = await createRecord(agent, patientId, "Primeiro");
+    const second = await createRecord(agent, patientId, "Segundo");
+    const edited = await agent
+      .put(recordUrl(patientId, first))
+      .send({ content: "Primeiro, corrigido", version: 1 })
+      .expect(200);
+
+    const page = await listRecords(agent, patientId);
+
+    expect(page).toEqual({
+      items: [
+        expect.objectContaining({ id: second, content: "Segundo", version: 1 }),
+        edited.body,
+      ],
+      nextCursor: null,
+    });
+  });
+
+  it("should paginate with a cursor without repeating or skipping records", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const created: string[] = [];
+    for (const content of ["1", "2", "3", "4", "5"]) {
+      created.push(await createRecord(agent, patientId, content));
+    }
+
+    const pages = await readAll(agent, patientId, { limit: 2 });
+
+    expect(pages.map((page) => page.items.map((item) => item.content))).toEqual(
+      [["5", "4"], ["3", "2"], ["1"]],
+    );
+    expect(pages.at(-1)?.nextCursor).toBeNull();
+  });
+
+  it("should not shift the next page when a record is created while paginating", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    for (const content of ["1", "2", "3"]) {
+      await createRecord(agent, patientId, content);
+    }
+
+    const first = await listRecords(agent, patientId, { limit: 2 });
+    await createRecord(agent, patientId, "novo");
+    const second = await listRecords(agent, patientId, {
+      limit: 2,
+      cursor: first.nextCursor as string,
+    });
+
+    expect(first.items.map((item) => item.content)).toEqual(["3", "2"]);
+    expect(second.items.map((item) => item.content)).toEqual(["1"]);
+  });
+
+  it("should break ties of the same creation time by id", async () => {
+    const { user, agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    await adminQuery(
+      `WITH record AS (
+         INSERT INTO records (owner_id, patient_id, author_id)
+         SELECT $1, $2, $1 FROM generate_series(1, 3)
+         RETURNING id, owner_id, author_id
+       )
+       INSERT INTO record_versions (owner_id, record_id, author_id,
+         author_name, author_coren, author_coren_state, content)
+       SELECT owner_id, record.id, author_id, name, coren, coren_state, 'Mesmo instante'
+       FROM record JOIN users ON users.id = record.author_id`,
+      [user.id, patientId],
+    );
+
+    const pages = await readAll(agent, patientId, { limit: 1 });
+    const ids = pages.flatMap((page) => page.items.map((item) => item.id));
+
+    expect(ids).toHaveLength(3);
+    expect(ids).toEqual([...ids].sort().reverse());
+  });
+
+  it("should hide voided records from the timeline and list them apart", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const kept = await createRecord(agent, patientId, "Mantido");
+    const voided = await createRecord(agent, patientId, "Anulado");
+    await agent
+      .post(`${recordUrl(patientId, voided)}/void`)
+      .send({ reason: "duplicate" })
+      .expect(200);
+
+    const active = await listRecords(agent, patientId);
+    expect(active.items.map((item) => item.id)).toEqual([kept]);
+
+    const voidedPage = await listRecords(agent, patientId, {
+      status: "voided",
+    });
+    expect(voidedPage.items).toEqual([
+      expect.objectContaining({
+        id: voided,
+        content: "Anulado",
+        voidReason: "duplicate",
+        voidedAt: expect.any(String),
+      }),
+    ]);
+  });
+
+  it("should return an empty page for a patient without records", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+
+    expect(await listRecords(agent, patientId)).toEqual({
+      items: [],
+      nextCursor: null,
+    });
+  });
+
+  it("should return an empty page for a cursor of another patient", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const otherPatientId = await createPatient(agent);
+    await createRecord(agent, patientId);
+    const otherRecord = await createRecord(agent, otherPatientId);
+
+    const page = await listRecords(agent, patientId, { cursor: otherRecord });
+
+    expect(page).toEqual({ items: [], nextCursor: null });
+  });
+
+  it("should audit the listing once for the patient", async () => {
+    const { user, agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    await createRecord(agent, patientId, "1");
+    await createRecord(agent, patientId, "2");
+
+    await listRecords(agent, patientId);
+
+    expect(await findAuditLogs(eq(auditLogs.action, "record.list"))).toEqual([
+      expect.objectContaining({
+        userId: user.id,
+        resourceType: "record",
+        resourceId: null,
+        patientId,
+      }),
+    ]);
+  });
+
+  it("should list the records of an archived patient", async () => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+    const recordId = await createRecord(agent, patientId);
+    await agent.post(`${API}/patients/${patientId}/archive`).expect(200);
+
+    const page = await listRecords(agent, patientId);
+
+    expect(page.items.map((item) => item.id)).toEqual([recordId]);
+  });
+
+  it.each([
+    [{ limit: 0 }],
+    [{ limit: 101 }],
+    [{ limit: "abc" }],
+    [{ cursor: "not-a-uuid" }],
+    [{ status: "deleted" }],
+  ])("should reject the invalid query %o", async (query) => {
+    const { agent } = await signedInAgent();
+    const patientId = await createPatient(agent);
+
+    await agent.get(recordsUrl(patientId)).query(query).expect(422);
+  });
+
+  it("should return 404 for a patient that does not exist", async () => {
+    const { agent } = await signedInAgent();
+
+    const response = await agent.get(recordsUrl(randomUUID())).expect(404);
+    expect(response.body.message).toBe(messages.PATIENT_NOT_FOUND);
+  });
+
+  it("should require authentication", async () => {
+    await request(app).get(recordsUrl(randomUUID())).expect(401);
+  });
+
+  it("should not list another nurse's records", async () => {
+    const { agent: owner } = await signedInAgent();
+    const patientId = await createPatient(owner);
+    await createRecord(owner, patientId);
+    const { user: otherUser, agent: other } = await signedInAgent({
+      email: "ana@example.com",
+    });
+
+    const response = await other.get(recordsUrl(patientId)).expect(404);
+    expect(response.body.message).toBe(messages.PATIENT_NOT_FOUND);
+
+    const logs = await findAuditLogs(eq(auditLogs.userId, otherUser.id));
+    expect(logs.map((log) => log.action)).not.toContain("record.list");
+  });
+});

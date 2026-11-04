@@ -3,6 +3,7 @@ import { Router } from "express";
 import * as recordController from "./record.controller.js";
 import {
   CreateRecordSchema,
+  ListRecordsSchema,
   ListRecordVersionsSchema,
   UpdateRecordSchema,
   VoidRecordSchema,
@@ -15,6 +16,12 @@ routes.post(
   "/",
   schemaValidationMiddleware(CreateRecordSchema),
   recordController.create,
+);
+
+routes.get(
+  "/",
+  schemaValidationMiddleware(ListRecordsSchema),
+  recordController.list,
 );
 
 routes.put(

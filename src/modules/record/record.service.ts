@@ -3,7 +3,11 @@ import * as patientService from "../patient/patient.service.js";
 import * as auditLogService from "../audit/auditLog.service.js";
 import type { PatientRecord, RecordVersion } from "./record.model.js";
 import type { RecordAuthor } from "./record.repository.js";
-import type { UpdateRecordData, VoidRecordData } from "./record.schema.js";
+import type {
+  ListRecordsQuery,
+  UpdateRecordData,
+  VoidRecordData,
+} from "./record.schema.js";
 import {
   ConflictException,
   NotFoundException,
@@ -97,6 +101,36 @@ export const createRecord = async (
   AppLogger.info("Record created", { recordId: created.record.id, patientId });
 
   return toRecordResponse(created);
+};
+
+export const listRecords = async (
+  ownerId: string,
+  patientId: string,
+  query: ListRecordsQuery,
+) => {
+  const { items, hasMore } = await withOwnerScope(ownerId, async () => {
+    await patientService.assertPatientExists(ownerId, patientId);
+
+    const page = await recordRepository.listForPatient(
+      ownerId,
+      patientId,
+      query,
+    );
+
+    await auditLogService.record({
+      userId: ownerId,
+      action: "record.list",
+      resourceType: "record",
+      patientId,
+    });
+
+    return page;
+  });
+
+  return {
+    items: items.map(toRecordResponse),
+    nextCursor: hasMore ? (items.at(-1)?.record.id ?? null) : null,
+  };
 };
 
 export const updateRecord = async (

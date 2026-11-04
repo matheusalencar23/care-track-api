@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CreateRecordSchema,
+  ListRecordsQuerySchema,
   ListRecordVersionsSchema,
   UpdateRecordSchema,
   VoidRecordSchema,
@@ -136,5 +137,37 @@ describe("VoidRecordSchema", () => {
     ],
   ])("should reject %o", (body, message) => {
     expect(voidErrors(body)).toContain(message);
+  });
+});
+
+describe("ListRecordsQuerySchema", () => {
+  it("should apply the defaults", () => {
+    expect(ListRecordsQuerySchema.parse({})).toEqual({
+      status: "active",
+      limit: 20,
+    });
+  });
+
+  it("should accept a status, a cursor and a limit from the query string", () => {
+    expect(
+      ListRecordsQuerySchema.parse({
+        status: "voided",
+        cursor: recordParams.recordId,
+        limit: "50",
+      }),
+    ).toEqual({ status: "voided", cursor: recordParams.recordId, limit: 50 });
+  });
+
+  it.each([
+    [{ status: "deleted" }, "Status inválido"],
+    [{ cursor: "abc" }, "Cursor inválido"],
+    [{ limit: "0" }, "O limite deve ser entre 1 e 100"],
+    [{ limit: "101" }, "O limite deve ser entre 1 e 100"],
+    [{ limit: "1.5" }, "Limite inválido"],
+  ])("should reject %o", (query, message) => {
+    const result = ListRecordsQuerySchema.safeParse(query);
+    expect(
+      result.success ? [] : result.error.issues.map((i) => i.message),
+    ).toEqual([message]);
   });
 });

@@ -16,6 +16,7 @@ export const AUDIT_ACTIONS = [
   "consent.list",
   "consent.revoke",
   "record.create",
+  "record.list",
   "record.update",
   "record.list_versions",
   "record.void",

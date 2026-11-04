@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   create,
+  list,
   listVersions,
   update,
   voidRecord,
 } from "../../src/modules/record/record.controller.js";
 import {
   createRecord,
+  listRecords,
   listRecordVersions,
   updateRecord,
   voidRecord as voidRecordService,
@@ -23,6 +25,7 @@ vi.mock("../../src/modules/record/record.service.js", () => ({
   createRecord: vi.fn(),
   updateRecord: vi.fn(),
   listRecordVersions: vi.fn(),
+  listRecords: vi.fn(),
   voidRecord: vi.fn(),
 }));
 
@@ -296,6 +299,39 @@ describe("recordController", () => {
       await voidRecord(req, createMockResponse(), next);
 
       expect(next).toHaveBeenCalledWith(error);
+    });
+  });
+  describe("list", () => {
+    it("should list the records with the parsed query", async () => {
+      const page = { items: [record], nextCursor: null };
+      vi.mocked(listRecords).mockResolvedValue(page as never);
+      const req = createMockRequest({
+        user,
+        params: { id: "patient-1" },
+        query: { limit: "5", status: "voided" },
+      });
+      const res = createMockResponse();
+
+      await list(req, res, createMockNext());
+
+      expect(listRecords).toHaveBeenCalledWith("owner-1", "patient-1", {
+        status: "voided",
+        limit: 5,
+      });
+      expect(res.json).toHaveBeenCalledWith(page);
+    });
+
+    it("should call next with UnauthorizedException when there is no authenticated user", async () => {
+      const req = createMockRequest({
+        params: { id: "patient-1" },
+        query: {},
+      });
+      const next = createMockNext();
+
+      await list(req, createMockResponse(), next);
+
+      expect(next).toHaveBeenCalledWith(expect.any(UnauthorizedException));
+      expect(listRecords).not.toHaveBeenCalled();
     });
   });
 });

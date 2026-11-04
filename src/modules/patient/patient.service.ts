@@ -32,6 +32,15 @@ const findPatientOrThrow = async (ownerId: string, patientId: string) => {
   return patient;
 };
 
+export const assertPatientExists = async (
+  ownerId: string,
+  patientId: string,
+) => {
+  await withOwnerScope(ownerId, async () => {
+    await findPatientOrThrow(ownerId, patientId);
+  });
+};
+
 export const assertPatientIsActive = async (
   ownerId: string,
   patientId: string,

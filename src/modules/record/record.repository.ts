@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { getDb, single } from "../../db/db.js";
 import {
   records,
@@ -6,6 +6,7 @@ import {
   type RecordVoidReason,
 } from "./record.model.js";
 import type { BrazilianState } from "../../shared/brazilianStates.js";
+import type { ListRecordsQuery } from "./record.schema.js";
 
 export interface RecordAuthor {
   id: string;
@@ -150,4 +151,71 @@ export const markVoided = async (
     .returning();
 
   return record ?? null;
+};
+
+export const listForPatient = async (
+  ownerId: string,
+  patientId: string,
+  query: ListRecordsQuery,
+) => {
+  const conditions = [
+    eq(records.ownerId, ownerId),
+    eq(records.patientId, patientId),
+    query.status === "voided"
+      ? isNotNull(records.voidedAt)
+      : isNull(records.voidedAt),
+  ];
+
+  if (query.cursor) {
+    conditions.push(
+      sql`(${records.createdAt}, ${records.id}) < (
+        select cursor.created_at, cursor.id from ${records} as cursor
+        where cursor.id = ${query.cursor}
+          and cursor.owner_id = ${ownerId}
+          and cursor.patient_id = ${patientId}
+      )`,
+    );
+  }
+
+  const rows = await getDb()
+    .select()
+    .from(records)
+    .where(and(...conditions))
+    .orderBy(desc(records.createdAt), desc(records.id))
+    .limit(query.limit + 1);
+
+  const page = rows.slice(0, query.limit);
+  const versions =
+    page.length === 0
+      ? []
+      : await getDb()
+          .selectDistinctOn([recordVersions.recordId])
+          .from(recordVersions)
+          .where(
+            and(
+              eq(recordVersions.ownerId, ownerId),
+              inArray(
+                recordVersions.recordId,
+                page.map((record) => record.id),
+              ),
+            ),
+          )
+          .orderBy(recordVersions.recordId, desc(recordVersions.version));
+
+  const currentVersions = new Map(
+    versions.map((version) => [version.recordId, version]),
+  );
+
+  return {
+    items: page.map((record) => {
+      const version = currentVersions.get(record.id);
+
+      if (!version) {
+        throw new Error("The record has no version");
+      }
+
+      return { record, version };
+    }),
+    hasMore: rows.length > query.limit,
+  };
 };
