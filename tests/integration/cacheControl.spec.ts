@@ -38,7 +38,8 @@ describe("cache control", () => {
     const response = await request(app)
       .post(`${API}/auth/signin`)
       .set("Content-Type", "application/json")
-      .send("{");
+      .send("{")
+      .expect(400);
 
     expect(response.headers["cache-control"]).toBe("no-store");
   });

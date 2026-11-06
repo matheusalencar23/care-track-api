@@ -50,6 +50,11 @@ export const messages = {
 
   CONFLICT: "Este registro já existe.",
 
+  INVALID_REQUEST_BODY:
+    "Não foi possível ler os dados enviados. Tente novamente.",
+
+  REQUEST_BODY_TOO_LARGE: "Os dados enviados excedem o tamanho permitido.",
+
   TOO_MANY_REQUESTS:
     "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.",
 

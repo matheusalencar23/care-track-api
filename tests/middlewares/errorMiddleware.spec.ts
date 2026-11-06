@@ -44,6 +44,31 @@ describe("errorMiddleware", () => {
     });
   });
 
+  it.each([
+    ["entity.parse.failed", 400, "INVALID_REQUEST_BODY"],
+    ["encoding.unsupported", 415, "INVALID_REQUEST_BODY"],
+    ["entity.too.large", 413, "REQUEST_BODY_TOO_LARGE"],
+  ] as const)(
+    "should respond with %s body parser errors as a client error",
+    (type, status, code) => {
+      const req = createMockRequest({});
+      const res = createMockResponse();
+      const next = vi.fn();
+
+      const error = Object.assign(new Error("body parser"), { type, status });
+
+      errorMiddleware(error, req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(status);
+      expect(res.json).toHaveBeenCalledWith({
+        code,
+        message: messages[code],
+        timestamp: expect.any(String),
+      });
+      expect(AppLogger.error).not.toHaveBeenCalled();
+    },
+  );
+
   it("should respond with a generic 500 for a plain Error", () => {
     const req = createMockRequest({});
     const res = createMockResponse();

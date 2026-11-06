@@ -132,6 +132,10 @@ const buildRequestBody = (schema: z.ZodType | undefined) => {
 const defaultResponses = (
   operation: ApiOperation,
 ): Record<number, ApiResponse> => ({
+  ...(requestPart(operation.request, "body") && {
+    400: errorResponse("Corpo da requisição ilegível (JSON malformado)."),
+    413: errorResponse("Corpo da requisição acima do tamanho permitido."),
+  }),
   ...(operation.request && {
     422: validationErrorResponse("Dados inválidos."),
   }),

@@ -8,12 +8,44 @@ import { AppLogger } from "../shared/appLogger.js";
 import { errorDetails } from "../shared/errorDetails.js";
 import { MessageCode, messages } from "../shared/messages.js";
 
+type BodyParserError = { type: string; status: number };
+
+const isBodyParserError = (err: unknown): err is BodyParserError => {
+  if (!(err instanceof Error)) {
+    return false;
+  }
+
+  const { type, status } = err as Partial<BodyParserError>;
+
+  return (
+    typeof type === "string" &&
+    typeof status === "number" &&
+    status >= 400 &&
+    status < 500
+  );
+};
+
+const toHttpException = (err: unknown) => {
+  if (!isBodyParserError(err)) {
+    return err;
+  }
+
+  const code: MessageCode =
+    err.type === "entity.too.large"
+      ? "REQUEST_BODY_TOO_LARGE"
+      : "INVALID_REQUEST_BODY";
+
+  return new HttpException(code, err.status, null);
+};
+
 export const errorMiddleware = (
-  err: unknown,
+  error: unknown,
   req: Request,
   res: Response,
   _next: NextFunction,
 ) => {
+  const err = toHttpException(error);
+
   if (isDuplicateKeyError(err)) {
     const conflict = new ConflictException("CONFLICT");
     AppLogger.warn("Duplicate key error", { statusCode: conflict.statusCode });
