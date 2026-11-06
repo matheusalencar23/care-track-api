@@ -9,7 +9,8 @@ export const signup = async (
   res: Response,
   next: NextFunction,
 ) => {
-  const { name, email, password, coren, corenState } = req.body;
+  const { name, email, password, coren, corenState, acceptedTermsVersion } =
+    req.body;
   AppLogger.info("Creating user...");
 
   try {
@@ -19,6 +20,7 @@ export const signup = async (
       password,
       coren,
       corenState,
+      acceptedTermsVersion,
     });
     AppLogger.info(`User created successfully`);
     res.status(201).json({

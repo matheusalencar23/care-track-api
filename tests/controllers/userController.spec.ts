@@ -11,6 +11,7 @@ import {
   resendValidation as resendValidationService,
   validateUser,
 } from "../../src/modules/user/user.service.js";
+import { CURRENT_TERMS_VERSION } from "../../src/modules/terms/terms.js";
 import {
   createMockNext,
   createMockRequest,
@@ -47,6 +48,7 @@ describe("signup", () => {
         password: "password123",
         coren: "123456",
         corenState: "SP",
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       },
     });
 
@@ -62,6 +64,7 @@ describe("signup", () => {
       password: "password123",
       coren: "123456",
       corenState: "SP",
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
 
     expect(res.status).toHaveBeenCalledWith(201);

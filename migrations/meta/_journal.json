@@ -78,6 +78,20 @@
       "when": 1793801042276,
       "tag": "0010_record_list_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793978947857,
+      "tag": "0011_terms_acceptances",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793978955807,
+      "tag": "0012_terms_acceptances_security",
+      "breakpoints": true
     }
   ]
 }

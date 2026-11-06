@@ -98,6 +98,8 @@ Planejamento feito em 02/11/2026. O Care Track é um **prontuário de enfermagem
 
 - [ ] E-mail exclusivo de privacidade para o encarregado.
 - [ ] Política de privacidade (com o contato do encarregado) e termos de uso com as cláusulas de operador (papéis, finalidade, local dos dados, encerramento de conta).
+- [x] Registro do aceite dos termos no cadastro (06/11/2026): `acceptedTermsVersion` obrigatório no signup, gravado em `terms_acceptances` (só de inclusão, horário do servidor). Os textos ficam no front, com os dados do operador e do encarregado ainda como marcadores.
+- [ ] Novo aceite quando os termos mudarem: expor no `/auth/me` se a última versão aceita é a atual e uma rota para registrar o aceite de quem já tem conta.
 - [ ] Campo opcional no perfil para a enfermeira informar o contato do encarregado dela.
 - [ ] Exportação completa do histórico de um paciente (acesso e portabilidade), sem registros e anexos anulados.
 - [ ] Relatório de acessos (a partir do log de auditoria).

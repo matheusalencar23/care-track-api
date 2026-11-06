@@ -1,5 +1,6 @@
 import z from "zod";
 import { BRAZILIAN_STATES } from "../../shared/brazilianStates.js";
+import { CURRENT_TERMS_VERSION } from "../terms/terms.js";
 
 export const passwordSchema = z
   .string("A senha é obrigatória")
@@ -16,6 +17,12 @@ export const SignupSchema = z.object({
       .string("O COREN é obrigatório")
       .regex(/^\d{1,9}$/, "O COREN deve conter apenas números"),
     corenState: z.enum(BRAZILIAN_STATES, "UF do COREN inválida"),
+    acceptedTermsVersion: z
+      .string("É preciso aceitar os termos de uso")
+      .refine(
+        (version) => version === CURRENT_TERMS_VERSION,
+        "Os termos de uso foram atualizados. Recarregue a página e aceite a versão atual.",
+      ),
   }),
 });
 

@@ -1,4 +1,5 @@
 import * as userRepository from "./user.repository.js";
+import * as termsAcceptanceRepository from "../terms/termsAcceptance.repository.js";
 import {
   BadRequestException,
   NotFoundException,
@@ -20,7 +21,12 @@ export const createUser = async (data: SignupData) => {
     throw new BadRequestException("INVALID_REGISTRATION_CREDENTIALS");
   }
 
-  const user = await userRepository.save(data);
+  const user = await withTransaction(async () => {
+    const created = await userRepository.save(data);
+    await termsAcceptanceRepository.save(created.id, data.acceptedTermsVersion);
+
+    return created;
+  });
   AppLogger.info("User created", { userId: user.id });
 
   createValidationEmail(user.id, data.email, data.name).catch(() => {});

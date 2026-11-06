@@ -55,7 +55,8 @@ afterEach(async () => {
     BEGIN;
     SET LOCAL session_replication_role = replica;
     TRUNCATE users, email_verification_tokens, password_reset_tokens,
-      patients, consents, records, record_versions, audit_logs;
+      patients, consents, records, record_versions, audit_logs,
+      terms_acceptances;
     COMMIT;
   `);
 });

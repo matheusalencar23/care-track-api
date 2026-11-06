@@ -4,6 +4,7 @@ import {
   SigninSchema,
   SignupSchema,
 } from "../../src/modules/user/user.schema.js";
+import { CURRENT_TERMS_VERSION } from "../../src/modules/terms/terms.js";
 
 const signupBody = {
   name: "John Doe",
@@ -11,6 +12,7 @@ const signupBody = {
   password: "password123",
   coren: "123456",
   corenState: "SP",
+  acceptedTermsVersion: CURRENT_TERMS_VERSION,
 };
 
 const signupPayload = (password: unknown) => ({
@@ -96,6 +98,20 @@ describe("SignupSchema coren", () => {
     ]);
     expect(signupErrors({ corenState: undefined })).toEqual([
       "UF do COREN inválida",
+    ]);
+  });
+});
+
+describe("SignupSchema acceptedTermsVersion", () => {
+  it("should require the acceptance of the terms", () => {
+    expect(signupErrors({ acceptedTermsVersion: undefined })).toEqual([
+      "É preciso aceitar os termos de uso",
+    ]);
+  });
+
+  it("should reject an outdated version of the terms", () => {
+    expect(signupErrors({ acceptedTermsVersion: "2020-01-01" })).toEqual([
+      "Os termos de uso foram atualizados. Recarregue a página e aceite a versão atual.",
     ]);
   });
 });

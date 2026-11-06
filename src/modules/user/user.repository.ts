@@ -28,7 +28,7 @@ export const findById = async (id: string) => {
   return user ?? null;
 };
 
-export const save = async (data: SignupData) => {
+export const save = async (data: Omit<SignupData, "acceptedTermsVersion">) => {
   try {
     return single(
       await getDb()

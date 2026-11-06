@@ -3,6 +3,7 @@ import { vi } from "vitest";
 import { auditLogs } from "../../src/modules/audit/auditLog.model.js";
 import { testDb } from "./database.js";
 import * as userRepository from "../../src/modules/user/user.repository.js";
+import { CURRENT_TERMS_VERSION } from "../../src/modules/terms/terms.js";
 import {
   sendConfirmationEmail,
   sendPasswordResetEmail,
@@ -16,6 +17,7 @@ export const userData = {
   password: "password123",
   coren: "123456",
   corenState: "SP" as const,
+  acceptedTermsVersion: CURRENT_TERMS_VERSION,
 };
 
 export const createVerifiedUser = async (

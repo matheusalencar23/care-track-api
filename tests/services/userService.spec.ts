@@ -9,6 +9,8 @@ import { messages } from "../../src/shared/messages.js";
 import { TooManyRequestsException } from "../../src/shared/exceptions/index.js";
 
 import * as userRepository from "../../src/modules/user/user.repository.js";
+import * as termsAcceptanceRepository from "../../src/modules/terms/termsAcceptance.repository.js";
+import { CURRENT_TERMS_VERSION } from "../../src/modules/terms/terms.js";
 import * as emailVerificationTokenService from "../../src/modules/email/emailVerificationToken.service.js";
 
 import { sendConfirmationEmail } from "../../src/services/email/email.service.js";
@@ -29,6 +31,10 @@ vi.mock("../../src/modules/user/user.repository.js", () => ({
   findById: vi.fn(),
   save: vi.fn(),
   markEmailVerified: vi.fn(),
+}));
+
+vi.mock("../../src/modules/terms/termsAcceptance.repository.js", () => ({
+  save: vi.fn(),
 }));
 
 vi.mock(
@@ -53,6 +59,7 @@ const userData = {
   password: "password123",
   coren: "123456",
   corenState: "SP" as const,
+  acceptedTermsVersion: CURRENT_TERMS_VERSION,
 };
 
 describe("userService", () => {
@@ -99,6 +106,11 @@ describe("userService", () => {
       );
 
       expect(userRepository.save).toHaveBeenCalledWith(userData);
+      expect(termsAcceptanceRepository.save).toHaveBeenCalledWith(
+        "123",
+        CURRENT_TERMS_VERSION,
+      );
+      expect(withTransaction).toHaveBeenCalled();
 
       expect(
         emailVerificationTokenService.createEmailVerificationToken,
