@@ -55,12 +55,8 @@ export const findByIdForPatient = async (
   return consent ?? null;
 };
 
-export const findActive = async (
-  ownerId: string,
-  patientId: string,
-  type: ConsentType,
-) => {
-  const [consent] = await getDb()
+const selectActive = (ownerId: string, patientId: string, type: ConsentType) =>
+  getDb()
     .select()
     .from(consents)
     .where(
@@ -72,6 +68,23 @@ export const findActive = async (
       ),
     )
     .limit(1);
+
+export const findActive = async (
+  ownerId: string,
+  patientId: string,
+  type: ConsentType,
+) => {
+  const [consent] = await selectActive(ownerId, patientId, type);
+
+  return consent ?? null;
+};
+
+export const findActiveForUpdate = async (
+  ownerId: string,
+  patientId: string,
+  type: ConsentType,
+) => {
+  const [consent] = await selectActive(ownerId, patientId, type).for("update");
 
   return consent ?? null;
 };

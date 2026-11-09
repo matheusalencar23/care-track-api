@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   grantConsent,
@@ -23,6 +23,7 @@ vi.mock("../../src/modules/consent/consent.repository.js", () => ({
   listForPatient: vi.fn(),
   findByIdForPatient: vi.fn(),
   findActive: vi.fn(),
+  findActiveForUpdate: vi.fn(),
   revoke: vi.fn(),
 }));
 
@@ -64,9 +65,12 @@ const buildPatient = (
     archivedAt,
   }) as unknown as Patient;
 
-const buildConsent = (status: "active" | "revoked" = "active") =>
+const buildConsent = (
+  status: "active" | "revoked" = "active",
+  id = "consent-1",
+) =>
   ({
-    id: "consent-1",
+    id,
     patientId,
     type: "image_capture",
     method: "written",
@@ -77,6 +81,17 @@ const buildConsent = (status: "active" | "revoked" = "active") =>
     revokedAt: null,
     revocationReason: null,
     createdAt,
+  }) as unknown as Consent;
+
+const buildRepresentativeConsent = (
+  collectedAt = "2010-01-10T12:00:00Z",
+  status: "active" | "revoked" = "active",
+) =>
+  ({
+    ...buildConsent(status),
+    grantor: "legal_representative",
+    representativeName: "Ana Souza",
+    collectedAt: new Date(collectedAt),
   }) as unknown as Consent;
 
 const consentData = {
@@ -98,7 +113,7 @@ describe("consentService", () => {
       vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
         buildPatient(),
       );
-      vi.mocked(consentRepository.findActive).mockResolvedValue(null);
+      vi.mocked(consentRepository.findActiveForUpdate).mockResolvedValue(null);
       vi.mocked(consentRepository.save).mockResolvedValue(buildConsent());
 
       const consent = await grantConsent("owner-1", patientId, consentData);
@@ -135,7 +150,7 @@ describe("consentService", () => {
       vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
         buildPatient(),
       );
-      vi.mocked(consentRepository.findActive).mockResolvedValue(null);
+      vi.mocked(consentRepository.findActiveForUpdate).mockResolvedValue(null);
       vi.mocked(consentRepository.save).mockResolvedValue(buildConsent());
 
       await grantConsent("owner-1", patientId, {
@@ -189,7 +204,7 @@ describe("consentService", () => {
       vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
         buildPatient("2010-01-01"),
       );
-      vi.mocked(consentRepository.findActive).mockResolvedValue(null);
+      vi.mocked(consentRepository.findActiveForUpdate).mockResolvedValue(null);
       vi.mocked(consentRepository.save).mockResolvedValue(buildConsent());
 
       await grantConsent("owner-1", patientId, {
@@ -204,13 +219,112 @@ describe("consentService", () => {
       vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
         buildPatient(),
       );
-      vi.mocked(consentRepository.findActive).mockResolvedValue(buildConsent());
+      vi.mocked(consentRepository.findActiveForUpdate).mockResolvedValue(
+        buildConsent(),
+      );
 
       await expect(
         grantConsent("owner-1", patientId, consentData),
       ).rejects.toThrow(messages.CONSENT_ALREADY_ACTIVE);
       expect(consentRepository.save).not.toHaveBeenCalled();
       expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it("should replace an active consent that needs renewal", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
+        buildPatient("2000-06-15"),
+      );
+      vi.mocked(consentRepository.findActiveForUpdate).mockResolvedValue(
+        buildRepresentativeConsent(),
+      );
+      vi.mocked(consentRepository.save).mockResolvedValue(
+        buildConsent("active", "consent-2"),
+      );
+
+      const consent = await grantConsent("owner-1", patientId, consentData);
+
+      expect(consent).toMatchObject({ id: "consent-2", needsRenewal: false });
+      expect(consentRepository.revoke).toHaveBeenCalledWith(
+        "consent-1",
+        "owner-1",
+        "Renovação: o paciente completou 18 anos.",
+      );
+      expect(
+        vi.mocked(consentRepository.revoke).mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        vi.mocked(consentRepository.save).mock.invocationCallOrder[0] as number,
+      );
+      expect(vi.mocked(auditLogService.record).mock.calls).toEqual([
+        [
+          {
+            userId: "owner-1",
+            action: "consent.revoke",
+            resourceType: "consent",
+            resourceId: "consent-1",
+            patientId,
+          },
+        ],
+        [
+          {
+            userId: "owner-1",
+            action: "consent.grant",
+            resourceType: "consent",
+            resourceId: "consent-2",
+            patientId,
+          },
+        ],
+      ]);
+    });
+  });
+
+  describe("needsRenewal", () => {
+    const needsRenewalOf = async (birthDate: string, consent: Consent) => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
+        buildPatient(birthDate),
+      );
+      vi.mocked(consentRepository.listForPatient).mockResolvedValue([consent]);
+
+      const [listed] = await listConsents("owner-1", patientId);
+
+      return listed?.needsRenewal;
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should expire a representative's consent on the 18th birthday", async () => {
+      const consent = buildRepresentativeConsent("2010-01-10T12:00:00Z");
+
+      vi.useFakeTimers({ now: new Date("2018-06-14T23:59:59Z") });
+      await expect(needsRenewalOf("2000-06-15", consent)).resolves.toBe(false);
+
+      vi.setSystemTime(new Date("2018-06-15T00:00:00Z"));
+      await expect(needsRenewalOf("2000-06-15", consent)).resolves.toBe(true);
+    });
+
+    it("should not expire a representative's consent collected in adulthood", async () => {
+      await expect(
+        needsRenewalOf(
+          "2000-06-15",
+          buildRepresentativeConsent("2018-06-15T00:00:00Z"),
+        ),
+      ).resolves.toBe(false);
+    });
+
+    it("should not expire a consent given by the patient", async () => {
+      await expect(needsRenewalOf("2000-06-15", buildConsent())).resolves.toBe(
+        false,
+      );
+    });
+
+    it("should not flag a revoked consent", async () => {
+      await expect(
+        needsRenewalOf(
+          "2000-06-15",
+          buildRepresentativeConsent("2010-01-10T12:00:00Z", "revoked"),
+        ),
+      ).resolves.toBe(false);
     });
   });
 
@@ -342,7 +456,23 @@ describe("consentService", () => {
   });
 
   describe("hasActiveConsent", () => {
+    it("should not count a consent that needs renewal as active", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
+        buildPatient("2000-06-15"),
+      );
+      vi.mocked(consentRepository.findActive).mockResolvedValue(
+        buildRepresentativeConsent(),
+      );
+
+      await expect(
+        hasActiveConsent("owner-1", patientId, "image_capture"),
+      ).resolves.toBe(false);
+    });
+
     it("should tell whether there is an active consent of the type", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
+        buildPatient(),
+      );
       vi.mocked(consentRepository.findActive).mockResolvedValueOnce(
         buildConsent(),
       );

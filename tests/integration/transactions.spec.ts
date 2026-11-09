@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import app from "../../src/app.js";
 import * as auditLogRepository from "../../src/modules/audit/auditLog.repository.js";
 import { auditLogs } from "../../src/modules/audit/auditLog.model.js";
+import { consents } from "../../src/modules/consent/consent.model.js";
 import { patients } from "../../src/modules/patient/patient.model.js";
 import {
   records,
@@ -55,6 +56,39 @@ describe("write and audit in the same transaction", () => {
       .expect(500);
 
     expect(await countRows(patients)).toBe(0);
+  });
+
+  it("should keep the expired consent when the renewal fails midway", async () => {
+    const agent = await signedInAgent();
+    const created = await agent
+      .post(`${API}/patients`)
+      .send({ name: "Carla Lima", birthDate: "2000-06-15" })
+      .expect(201);
+    const consentsUrl = `${API}/patients/${created.body.id}/consents`;
+    const expired = await agent
+      .post(consentsUrl)
+      .send({
+        type: "image_capture",
+        method: "written",
+        grantor: "legal_representative",
+        representativeName: "Ana Lima",
+        collectedAt: "2010-01-10T12:00:00Z",
+      })
+      .expect(201);
+    const { save } = await vi.importActual<typeof auditLogRepository>(
+      "../../src/modules/audit/auditLog.repository.js",
+    );
+    vi.mocked(auditLogRepository.save)
+      .mockImplementationOnce(save)
+      .mockRejectedValueOnce(new Error("Audit storage is down"));
+
+    await agent
+      .post(consentsUrl)
+      .send({ type: "image_capture", method: "written", grantor: "patient" })
+      .expect(500);
+
+    const stored = await testDb().select().from(consents);
+    expect(stored).toMatchObject([{ id: expired.body.id, status: "active" }]);
   });
 
   it("should not keep a patient update when the audit fails", async () => {

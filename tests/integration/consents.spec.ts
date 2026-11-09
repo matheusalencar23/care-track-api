@@ -59,6 +59,7 @@ describe("consents", () => {
       representativeName: null,
       collectedAt: expect.any(String),
       status: "active",
+      needsRenewal: false,
       revokedAt: null,
       revocationReason: null,
       createdAt: expect.any(String),
@@ -245,6 +246,7 @@ describe("consents", () => {
         })
         .expect(201);
       expect(granted.body.representativeName).toBe("Ana Souza");
+      expect(granted.body.needsRenewal).toBe(false);
     });
 
     it("should use the age at the collection date", async () => {
@@ -262,6 +264,183 @@ describe("consents", () => {
         .post(consentsUrl(patientId))
         .send({ ...imageConsent, collectedAt: "2018-06-15T12:00:00Z" })
         .expect(201);
+    });
+  });
+
+  describe("renewal at the age of majority", () => {
+    const formerMinor = { name: "Carla Lima", birthDate: "2000-06-15" };
+    const representativeConsent = {
+      ...imageConsent,
+      grantor: "legal_representative",
+      representativeName: "Ana Lima",
+      collectedAt: "2010-01-10T12:00:00Z",
+    };
+
+    it("should flag the consent given while the patient was a minor", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, formerMinor);
+
+      const granted = await agent
+        .post(consentsUrl(patientId))
+        .send(representativeConsent)
+        .expect(201);
+      expect(granted.body).toMatchObject({
+        status: "active",
+        needsRenewal: true,
+      });
+
+      const list = await agent.get(consentsUrl(patientId)).expect(200);
+      expect(list.body).toEqual([granted.body]);
+    });
+
+    it("should not flag a representative's consent collected in adulthood", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, formerMinor);
+
+      const granted = await agent
+        .post(consentsUrl(patientId))
+        .send({
+          ...representativeConsent,
+          collectedAt: "2018-06-15T12:00:00Z",
+        })
+        .expect(201);
+      expect(granted.body.needsRenewal).toBe(false);
+
+      await agent.post(consentsUrl(patientId)).send(imageConsent).expect(409);
+    });
+
+    it("should follow a correction of the birth date", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, formerMinor);
+      await agent
+        .post(consentsUrl(patientId))
+        .send({
+          ...representativeConsent,
+          collectedAt: "2018-06-15T12:00:00Z",
+        })
+        .expect(201);
+
+      await agent
+        .put(`${API}/patients/${patientId}`)
+        .send({ ...formerMinor, birthDate: "2001-06-15" })
+        .expect(200);
+
+      const list = await agent.get(consentsUrl(patientId)).expect(200);
+      expect(list.body[0].needsRenewal).toBe(true);
+    });
+
+    it("should replace the expired consent in a single request and keep the history", async () => {
+      const { user, agent } = await signedInAgent();
+      const patientId = await createPatient(agent, formerMinor);
+      const expired = await agent
+        .post(consentsUrl(patientId))
+        .send(representativeConsent)
+        .expect(201);
+
+      const renewed = await agent
+        .post(consentsUrl(patientId))
+        .send(imageConsent)
+        .expect(201);
+      expect(renewed.body).toMatchObject({
+        status: "active",
+        grantor: "patient",
+        needsRenewal: false,
+      });
+
+      const list = await agent.get(consentsUrl(patientId)).expect(200);
+      expect(list.body).toMatchObject([
+        { id: renewed.body.id, status: "active", needsRenewal: false },
+        {
+          id: expired.body.id,
+          status: "revoked",
+          needsRenewal: false,
+          revokedAt: expect.any(String),
+          revocationReason: "Renovação: o paciente completou 18 anos.",
+        },
+      ]);
+
+      const logs = await findAuditLogs(eq(auditLogs.resourceType, "consent"));
+      expect(logs).toMatchObject([
+        { action: "consent.grant", resourceId: expired.body.id },
+        { action: "consent.revoke", resourceId: expired.body.id },
+        {
+          action: "consent.grant",
+          userId: user.id,
+          resourceId: renewed.body.id,
+          patientId,
+        },
+        { action: "consent.list" },
+      ]);
+    });
+
+    it("should still accept revoking the expired consent before granting", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, formerMinor);
+      const expired = await agent
+        .post(consentsUrl(patientId))
+        .send(representativeConsent)
+        .expect(201);
+
+      await agent
+        .post(`${consentsUrl(patientId)}/${expired.body.id}/revoke`)
+        .send({ reason: "Paciente pediu a revogação" })
+        .expect(200);
+      await agent.post(consentsUrl(patientId)).send(imageConsent).expect(201);
+    });
+
+    it("should let only one of two simultaneous renewals succeed", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, formerMinor);
+      await agent
+        .post(consentsUrl(patientId))
+        .send(representativeConsent)
+        .expect(201);
+
+      const responses = await Promise.all([
+        agent.post(consentsUrl(patientId)).send(imageConsent),
+        agent.post(consentsUrl(patientId)).send(imageConsent),
+      ]);
+
+      expect(responses.map(({ status }) => status).sort()).toEqual([201, 409]);
+
+      const stored = await testDb()
+        .select()
+        .from(consents)
+        .where(eq(consents.status, "active"));
+      expect(stored).toHaveLength(1);
+    });
+
+    it("should not let another nurse renew the consent", async () => {
+      const { agent: owner } = await signedInAgent();
+      const { agent: other } = await signedInAgent({
+        email: "ana@example.com",
+      });
+      const patientId = await createPatient(owner, formerMinor);
+      const expired = await owner
+        .post(consentsUrl(patientId))
+        .send(representativeConsent)
+        .expect(201);
+
+      await other.post(consentsUrl(patientId)).send(imageConsent).expect(404);
+
+      const list = await owner.get(consentsUrl(patientId)).expect(200);
+      expect(list.body).toEqual([expired.body]);
+    });
+
+    it("should not renew the consent of an archived patient", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, formerMinor);
+      await agent
+        .post(consentsUrl(patientId))
+        .send(representativeConsent)
+        .expect(201);
+      await agent.post(`${API}/patients/${patientId}/archive`).expect(200);
+
+      const response = await agent
+        .post(consentsUrl(patientId))
+        .send(imageConsent)
+        .expect(409);
+      expect(response.body.message).toBe(messages.PATIENT_ARCHIVED);
     });
   });
 

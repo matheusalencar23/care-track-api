@@ -28,6 +28,10 @@ const ConsentSchema = component(
     representativeName: z.string().nullable(),
     collectedAt: z.iso.datetime(),
     status: z.enum(CONSENT_STATUSES),
+    needsRenewal: z.boolean().meta({
+      description:
+        "Consentimento ativo dado pelo responsável legal enquanto o paciente era menor, e o paciente já completou 18 anos. Deixou de valer e precisa ser renovado.",
+    }),
     revokedAt: z.iso.datetime().nullable(),
     revocationReason: z.string().nullable(),
     createdAt: z.iso.datetime(),
@@ -45,14 +49,14 @@ export const consentOperations: ApiOperation[] = [
     tag: "Consentimentos",
     summary: "Registra um consentimento",
     description:
-      "O `representativeName` é obrigatório quando quem consente é o responsável legal, e proibido quando é o próprio paciente. Paciente menor de idade na data da coleta exige o responsável legal. Sem `collectedAt`, vale o horário do servidor.",
+      "O `representativeName` é obrigatório quando quem consente é o responsável legal, e proibido quando é o próprio paciente. Paciente menor de idade na data da coleta exige o responsável legal. Sem `collectedAt`, vale o horário do servidor. Se o consentimento ativo do mesmo tipo estiver com `needsRenewal`, ele é revogado e substituído na mesma transação, sem precisar revogar antes.",
     authenticated: true,
     request: GrantConsentSchema,
     responses: {
       201: { description: "Consentimento registrado.", schema: ConsentSchema },
       404: patientNotFound,
       409: errorResponse(
-        "Paciente arquivado, ou já existe um consentimento ativo do mesmo tipo.",
+        "Paciente arquivado, ou já existe um consentimento ativo do mesmo tipo que não precisa de renovação.",
       ),
       422: validationErrorResponse(
         "Dados inválidos, ou paciente menor de idade consentindo sem o responsável legal.",

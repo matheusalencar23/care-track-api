@@ -12,8 +12,22 @@ import { AppLogger } from "../../shared/appLogger.js";
 import { withOwnerScope } from "../../db/db.js";
 
 const AGE_OF_MAJORITY = 18;
+const RENEWAL_REVOCATION_REASON = "Renovação: o paciente completou 18 anos.";
 
-export const toConsentResponse = (consent: Consent) => ({
+const isMinorAt = (birthDate: string, date: Date) => {
+  const adulthood = new Date(birthDate);
+  adulthood.setUTCFullYear(adulthood.getUTCFullYear() + AGE_OF_MAJORITY);
+
+  return date < adulthood;
+};
+
+const needsRenewal = (consent: Consent, birthDate: string) =>
+  consent.status === "active" &&
+  consent.grantor === "legal_representative" &&
+  isMinorAt(birthDate, consent.collectedAt) &&
+  !isMinorAt(birthDate, new Date());
+
+const toConsentResponse = (consent: Consent, birthDate: string) => ({
   id: consent.id,
   patientId: consent.patientId,
   type: consent.type,
@@ -22,17 +36,11 @@ export const toConsentResponse = (consent: Consent) => ({
   representativeName: consent.representativeName,
   collectedAt: consent.collectedAt,
   status: consent.status,
+  needsRenewal: needsRenewal(consent, birthDate),
   revokedAt: consent.revokedAt,
   revocationReason: consent.revocationReason,
   createdAt: consent.createdAt,
 });
-
-const isMinorAt = (birthDate: string, date: Date) => {
-  const adulthood = new Date(birthDate);
-  adulthood.setUTCFullYear(adulthood.getUTCFullYear() + AGE_OF_MAJORITY);
-
-  return date < adulthood;
-};
 
 const findPatientOrThrow = async (ownerId: string, patientId: string) => {
   const patient = await patientRepository.findByIdForOwner(patientId, ownerId);
@@ -70,8 +78,30 @@ export const grantConsent = async (
       );
     }
 
-    if (await consentRepository.findActive(ownerId, patientId, data.type)) {
+    const active = await consentRepository.findActiveForUpdate(
+      ownerId,
+      patientId,
+      data.type,
+    );
+
+    if (active && !needsRenewal(active, patient.birthDate)) {
       throw new ConflictException("CONSENT_ALREADY_ACTIVE");
+    }
+
+    if (active) {
+      await consentRepository.revoke(
+        active.id,
+        ownerId,
+        RENEWAL_REVOCATION_REASON,
+      );
+
+      await auditLogService.record({
+        userId: ownerId,
+        action: "consent.revoke",
+        resourceType: "consent",
+        resourceId: active.id,
+        patientId,
+      });
     }
 
     const consent = await consentRepository.save(
@@ -89,16 +119,16 @@ export const grantConsent = async (
       patientId,
     });
 
-    return consent;
+    return toConsentResponse(consent, patient.birthDate);
   });
   AppLogger.info("Consent granted", { consentId: consent.id, patientId });
 
-  return toConsentResponse(consent);
+  return consent;
 };
 
 export const listConsents = async (ownerId: string, patientId: string) => {
-  const consents = await withOwnerScope(ownerId, async () => {
-    await findPatientOrThrow(ownerId, patientId);
+  return await withOwnerScope(ownerId, async () => {
+    const patient = await findPatientOrThrow(ownerId, patientId);
 
     const consents = await consentRepository.listForPatient(ownerId, patientId);
 
@@ -109,10 +139,10 @@ export const listConsents = async (ownerId: string, patientId: string) => {
       patientId,
     });
 
-    return consents;
+    return consents.map((consent) =>
+      toConsentResponse(consent, patient.birthDate),
+    );
   });
-
-  return consents.map(toConsentResponse);
 };
 
 export const revokeConsent = async (
@@ -122,7 +152,7 @@ export const revokeConsent = async (
   reason: string | undefined,
 ) => {
   const consent = await withOwnerScope(ownerId, async () => {
-    await findPatientOrThrow(ownerId, patientId);
+    const patient = await findPatientOrThrow(ownerId, patientId);
 
     const current = await consentRepository.findByIdForPatient(
       consentId,
@@ -152,11 +182,11 @@ export const revokeConsent = async (
       patientId,
     });
 
-    return consent;
+    return toConsentResponse(consent, patient.birthDate);
   });
   AppLogger.info("Consent revoked", { consentId: consent.id, patientId });
 
-  return toConsentResponse(consent);
+  return consent;
 };
 
 export const hasActiveConsent = async (
@@ -164,9 +194,10 @@ export const hasActiveConsent = async (
   patientId: string,
   type: ConsentType,
 ) => {
-  return await withOwnerScope(
-    ownerId,
-    async () =>
-      (await consentRepository.findActive(ownerId, patientId, type)) !== null,
-  );
+  return await withOwnerScope(ownerId, async () => {
+    const patient = await findPatientOrThrow(ownerId, patientId);
+    const active = await consentRepository.findActive(ownerId, patientId, type);
+
+    return active !== null && !needsRenewal(active, patient.birthDate);
+  });
 };
