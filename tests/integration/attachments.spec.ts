@@ -98,12 +98,30 @@ const signedInAgent = async (overrides: Partial<typeof userData> = {}) => {
 const otherNurse = () =>
   signedInAgent({ email: "ana@example.com", coren: "654321" });
 
-const createPatient = async (agent: Agent) => {
+const imageConsent = {
+  type: "image_capture",
+  method: "written",
+  grantor: "patient",
+};
+
+const consentsUrl = (patientId: string) =>
+  `${API}/patients/${patientId}/consents`;
+
+const createPatient = async (
+  agent: Agent,
+  { birthDate = "1950-03-15", withConsent = true } = {},
+) => {
   const response = await agent
     .post(`${API}/patients`)
-    .send({ name: "José da Silva", birthDate: "1950-03-15" })
+    .send({ name: "José da Silva", birthDate })
     .expect(201);
-  return response.body.id as string;
+  const patientId = response.body.id as string;
+
+  if (withConsent) {
+    await agent.post(consentsUrl(patientId)).send(imageConsent).expect(201);
+  }
+
+  return patientId;
 };
 
 const attachmentsUrl = (patientId: string) =>
@@ -167,7 +185,9 @@ describe("Attachments", () => {
       });
       expect(response.body).not.toHaveProperty("storageKey");
 
-      expect(await fetchStored(agent, patientId, response.body.id)).toEqual(PDF);
+      expect(await fetchStored(agent, patientId, response.body.id)).toEqual(
+        PDF,
+      );
 
       const logs = await findAuditLogs(eq(auditLogs.userId, user.id));
       expect(logs).toContainEqual(
@@ -184,7 +204,9 @@ describe("Attachments", () => {
       const { agent } = await signedInAgent();
       const patientId = await createPatient(agent);
 
-      const response = await send(agent, patientId, PNG, "ação.png").expect(201);
+      const response = await send(agent, patientId, PNG, "ação.png").expect(
+        201,
+      );
 
       expect(response.body.fileName).toBe("ação.png");
     });
@@ -223,9 +245,11 @@ describe("Attachments", () => {
       const { agent } = await signedInAgent();
       const patientId = await createPatient(agent);
 
-      const response = await send(agent, patientId, JPEG.subarray(0, 40)).expect(
-        422,
-      );
+      const response = await send(
+        agent,
+        patientId,
+        JPEG.subarray(0, 40),
+      ).expect(422);
 
       expect(response.body).toMatchObject(code("ATTACHMENT_CONTENT_INVALID"));
       expect(await countRows(attachments)).toBe(0);
@@ -279,7 +303,7 @@ describe("Attachments", () => {
       const response = await agent
         .post(attachmentsUrl(patientId))
         .set("content-type", "multipart/form-data; boundary=x")
-        .send("--x\r\nContent-Disposition: form-data; name=\"file\"")
+        .send('--x\r\nContent-Disposition: form-data; name="file"')
         .expect(400);
 
       expect(response.body).toMatchObject(code("INVALID_REQUEST_BODY"));
@@ -329,6 +353,161 @@ describe("Attachments", () => {
     });
   });
 
+  describe("image consent", () => {
+    it.each([
+      ["a photo", PNG, "foto.png"],
+      ["a video", MP4, "video.mp4"],
+    ])(
+      "should refuse %s without an active consent",
+      async (_name, file, filename) => {
+        const { agent } = await signedInAgent();
+        const patientId = await createPatient(agent, { withConsent: false });
+
+        const response = await send(agent, patientId, file, filename).expect(
+          409,
+        );
+
+        expect(response.body).toMatchObject(
+          code("ATTACHMENT_CONSENT_REQUIRED"),
+        );
+        expect(await countRows(attachments)).toBe(0);
+        await expectNoTemporaryFiles();
+      },
+    );
+
+    it("should check the detected type, not the declared one", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, { withConsent: false });
+
+      const response = await agent
+        .post(attachmentsUrl(patientId))
+        .attach("file", PNG, {
+          filename: "exame.pdf",
+          contentType: "application/pdf",
+        })
+        .expect(409);
+
+      expect(response.body).toMatchObject(code("ATTACHMENT_CONSENT_REQUIRED"));
+    });
+
+    it("should accept a PDF without consent", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, { withConsent: false });
+
+      await send(agent, patientId, PDF, "exame.pdf").expect(201);
+    });
+
+    it("should refuse uploading and opening photos after the consent is revoked", async () => {
+      const { user, agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+      const photoId = await upload(agent, patientId);
+      const videoId = await upload(agent, patientId, MP4);
+      const pdfId = await upload(agent, patientId, PDF);
+      const [consent] = (await agent.get(consentsUrl(patientId)).expect(200))
+        .body;
+      await agent
+        .post(`${consentsUrl(patientId)}/${consent.id}/revoke`)
+        .expect(200);
+
+      const response = await send(agent, patientId).expect(409);
+      expect(response.body).toMatchObject(code("ATTACHMENT_CONSENT_REQUIRED"));
+      expect(await countRows(attachments)).toBe(3);
+
+      for (const attachmentId of [photoId, videoId]) {
+        const download = await agent
+          .get(downloadUrl(patientId, attachmentId))
+          .expect(409);
+        expect(download.body).toMatchObject(
+          code("ATTACHMENT_CONSENT_REQUIRED"),
+        );
+        expect(download.body).not.toHaveProperty("downloadUrl");
+      }
+      await agent.get(downloadUrl(patientId, pdfId)).expect(200);
+
+      const downloads = await findAuditLogs(eq(auditLogs.userId, user.id));
+      expect(
+        downloads
+          .filter(({ action }) => action === "attachment.download")
+          .map(({ resourceId }) => resourceId),
+      ).toEqual([pdfId]);
+    });
+
+    it("should open the photos again after a new consent", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+      const photoId = await upload(agent, patientId);
+      const [consent] = (await agent.get(consentsUrl(patientId)).expect(200))
+        .body;
+      await agent
+        .post(`${consentsUrl(patientId)}/${consent.id}/revoke`)
+        .expect(200);
+      await agent.get(downloadUrl(patientId, photoId)).expect(409);
+
+      await agent.post(consentsUrl(patientId)).send(imageConsent).expect(201);
+
+      await agent.get(downloadUrl(patientId, photoId)).expect(200);
+    });
+
+    it("should not open photos while the consent needs renewal", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, {
+        birthDate: "2000-06-15",
+        withConsent: false,
+      });
+      await agent
+        .post(consentsUrl(patientId))
+        .send({
+          ...imageConsent,
+          grantor: "legal_representative",
+          representativeName: "Ana Lima",
+          collectedAt: "2018-06-15T12:00:00Z",
+        })
+        .expect(201);
+      const photoId = await upload(agent, patientId);
+
+      await agent
+        .put(`${API}/patients/${patientId}`)
+        .send({ name: "José da Silva", birthDate: "2001-06-15" })
+        .expect(200);
+
+      const response = await agent
+        .get(downloadUrl(patientId, photoId))
+        .expect(409);
+      expect(response.body).toMatchObject(code("ATTACHMENT_CONSENT_REQUIRED"));
+    });
+
+    it("should refuse photos while the consent needs renewal and accept them after it", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, {
+        birthDate: "2000-06-15",
+        withConsent: false,
+      });
+      await agent
+        .post(consentsUrl(patientId))
+        .send({
+          ...imageConsent,
+          grantor: "legal_representative",
+          representativeName: "Ana Lima",
+          collectedAt: "2010-01-10T12:00:00Z",
+        })
+        .expect(201);
+
+      const response = await send(agent, patientId).expect(409);
+      expect(response.body).toMatchObject(code("ATTACHMENT_CONSENT_REQUIRED"));
+
+      await agent.post(consentsUrl(patientId)).send(imageConsent).expect(201);
+      await send(agent, patientId).expect(201);
+    });
+
+    it("should not use the consent of another patient", async () => {
+      const { agent } = await signedInAgent();
+      await createPatient(agent);
+      const patientId = await createPatient(agent, { withConsent: false });
+
+      await send(agent, patientId).expect(409);
+    });
+  });
+
   describe("image metadata", () => {
     it.each([
       ["JPEG", JPEG, "jpg", "image/jpeg"],
@@ -356,9 +535,9 @@ describe("Attachments", () => {
         const stored = await fetchStored(agent, patientId, response.body.id);
         const after = await readTags(stored, extension);
 
-        expect(Object.keys(after).filter((tag) => tag.startsWith("GPS"))).toEqual(
-          [],
-        );
+        expect(
+          Object.keys(after).filter((tag) => tag.startsWith("GPS")),
+        ).toEqual([]);
         expect(after.Make).toBeUndefined();
         expect(after.Creator).toBeUndefined();
         expect(after.CreateDate).toBeUndefined();

@@ -22,7 +22,7 @@ vi.mock("../../src/modules/consent/consent.repository.js", () => ({
   save: vi.fn(),
   listForPatient: vi.fn(),
   findByIdForPatient: vi.fn(),
-  findActive: vi.fn(),
+  findActiveForShare: vi.fn(),
   findActiveForUpdate: vi.fn(),
   revoke: vi.fn(),
 }));
@@ -460,7 +460,7 @@ describe("consentService", () => {
       vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
         buildPatient("2000-06-15"),
       );
-      vi.mocked(consentRepository.findActive).mockResolvedValue(
+      vi.mocked(consentRepository.findActiveForShare).mockResolvedValue(
         buildRepresentativeConsent(),
       );
 
@@ -473,19 +473,21 @@ describe("consentService", () => {
       vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
         buildPatient(),
       );
-      vi.mocked(consentRepository.findActive).mockResolvedValueOnce(
+      vi.mocked(consentRepository.findActiveForShare).mockResolvedValueOnce(
         buildConsent(),
       );
       await expect(
         hasActiveConsent("owner-1", patientId, "image_capture"),
       ).resolves.toBe(true);
 
-      vi.mocked(consentRepository.findActive).mockResolvedValueOnce(null);
+      vi.mocked(consentRepository.findActiveForShare).mockResolvedValueOnce(
+        null,
+      );
       await expect(
         hasActiveConsent("owner-1", patientId, "image_capture"),
       ).resolves.toBe(false);
 
-      expect(consentRepository.findActive).toHaveBeenCalledWith(
+      expect(consentRepository.findActiveForShare).toHaveBeenCalledWith(
         "owner-1",
         patientId,
         "image_capture",

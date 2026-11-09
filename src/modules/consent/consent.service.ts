@@ -196,7 +196,11 @@ export const hasActiveConsent = async (
 ) => {
   return await withOwnerScope(ownerId, async () => {
     const patient = await findPatientOrThrow(ownerId, patientId);
-    const active = await consentRepository.findActive(ownerId, patientId, type);
+    const active = await consentRepository.findActiveForShare(
+      ownerId,
+      patientId,
+      type,
+    );
 
     return active !== null && !needsRenewal(active, patient.birthDate);
   });

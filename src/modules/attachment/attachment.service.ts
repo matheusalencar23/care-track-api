@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import * as attachmentRepository from "./attachment.repository.js";
 import * as patientService from "../patient/patient.service.js";
+import * as consentService from "../consent/consent.service.js";
 import * as auditLogService from "../audit/auditLog.service.js";
 import * as storageService from "../../services/storage/storage.service.js";
 import * as attachmentFile from "./attachment.file.js";
@@ -51,6 +52,29 @@ const findOrThrow = async (
   return attachment;
 };
 
+const assertImageConsent = async (
+  ownerId: string,
+  patientId: string,
+  contentType: string,
+) => {
+  if (
+    !attachmentFile.isImage(contentType) &&
+    !attachmentFile.isVideo(contentType)
+  ) {
+    return;
+  }
+
+  if (
+    !(await consentService.hasActiveConsent(
+      ownerId,
+      patientId,
+      "image_capture",
+    ))
+  ) {
+    throw new ConflictException("ATTACHMENT_CONSENT_REQUIRED");
+  }
+};
+
 export const assertCanUpload = async (ownerId: string, patientId: string) => {
   await withOwnerScope(ownerId, async () => {
     await patientService.assertPatientIsActive(ownerId, patientId);
@@ -68,6 +92,8 @@ export const createAttachment = async (
     throw new UnprocessableEntityException("ATTACHMENT_TYPE_NOT_ALLOWED", []);
   }
 
+  await assertImageConsent(ownerId, patientId, contentType);
+
   if (attachmentFile.isImage(contentType)) {
     try {
       await attachmentFile.removeImageMetadata(file.path);
@@ -84,6 +110,7 @@ export const createAttachment = async (
 
   const attachment = await withOwnerScope(ownerId, async () => {
     await patientService.assertPatientIsActive(ownerId, patientId);
+    await assertImageConsent(ownerId, patientId, contentType);
 
     const attachment = await attachmentRepository.save(ownerId, patientId, {
       fileName: file.fileName,
@@ -118,6 +145,7 @@ export const getDownload = async (
 ) => {
   const attachment = await withOwnerScope(ownerId, async () => {
     const attachment = await findOrThrow(ownerId, patientId, attachmentId);
+    await assertImageConsent(ownerId, patientId, attachment.contentType);
 
     await auditLogService.record({
       userId: ownerId,

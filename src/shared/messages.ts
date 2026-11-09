@@ -47,6 +47,9 @@ export const messages = {
 
   ATTACHMENT_TOO_LARGE: "O arquivo excede o tamanho máximo permitido.",
 
+  ATTACHMENT_CONSENT_REQUIRED:
+    "Enviar ou abrir fotos e vídeos exige um consentimento de uso de imagem ativo para o paciente.",
+
   INVALID_LINK_TOKEN: "Link inválido ou expirado!",
 
   EMAIL_ALREADY_VERIFIED: "Este e-mail já foi confirmado!",

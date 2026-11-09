@@ -30,6 +30,9 @@ export const detectContentType = async (filePath: string) => {
 export const isImage = (contentType: string) =>
   contentType.startsWith("image/");
 
+export const isVideo = (contentType: string) =>
+  contentType.startsWith("video/");
+
 export const removeImageMetadata = async (filePath: string) => {
   await exiftool.write(
     filePath,

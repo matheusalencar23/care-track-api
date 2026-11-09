@@ -69,12 +69,12 @@ const selectActive = (ownerId: string, patientId: string, type: ConsentType) =>
     )
     .limit(1);
 
-export const findActive = async (
+export const findActiveForShare = async (
   ownerId: string,
   patientId: string,
   type: ConsentType,
 ) => {
-  const [consent] = await selectActive(ownerId, patientId, type);
+  const [consent] = await selectActive(ownerId, patientId, type).for("share");
 
   return consent ?? null;
 };

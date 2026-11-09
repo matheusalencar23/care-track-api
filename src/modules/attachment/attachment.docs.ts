@@ -55,14 +55,16 @@ export const attachmentOperations: ApiOperation[] = [
     tag: "Anexos",
     summary: "Envia um anexo",
     description:
-      "Grava o arquivo, ainda sem registro. Depois, informe o id em `attachmentIds` ao criar o registro.",
+      "Grava o arquivo, ainda sem registro. Depois, informe o id em `attachmentIds` ao criar o registro. Fotos e vídeos (pelo tipo detectado) exigem um consentimento `image_capture` ativo e sem `needsRenewal`; PDFs não.",
     authenticated: true,
     request: UploadAttachmentSchema,
     multipart: true,
     responses: {
       201: { description: "Anexo gravado.", schema: AttachmentSchema },
       404: errorResponse("Paciente não encontrado."),
-      409: errorResponse("Paciente arquivado."),
+      409: errorResponse(
+        "Paciente arquivado, ou foto ou vídeo sem consentimento de uso de imagem ativo (`ATTACHMENT_CONSENT_REQUIRED`).",
+      ),
       413: errorResponse("Arquivo acima do tamanho máximo."),
       422: validationErrorResponse(
         "Arquivo ausente, nome inválido, tipo não permitido ou arquivo corrompido.",
@@ -75,7 +77,7 @@ export const attachmentOperations: ApiOperation[] = [
     tag: "Anexos",
     summary: "Gera a URL de download de um anexo",
     description:
-      "A URL é assinada e de curta duração. Cada chamada é registrada na auditoria.",
+      "A URL é assinada e de curta duração. Cada chamada é registrada na auditoria. Fotos e vídeos só são liberados com um consentimento `image_capture` ativo e sem `needsRenewal`; PDFs não dependem dele.",
     authenticated: true,
     request: AttachmentParamsSchema,
     responses: {
@@ -84,6 +86,9 @@ export const attachmentOperations: ApiOperation[] = [
         schema: AttachmentDownloadSchema,
       },
       404: notFound,
+      409: errorResponse(
+        "Foto ou vídeo sem consentimento de uso de imagem ativo (`ATTACHMENT_CONSENT_REQUIRED`).",
+      ),
     },
   },
 ];
