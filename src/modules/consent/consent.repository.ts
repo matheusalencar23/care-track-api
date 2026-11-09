@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, min } from "drizzle-orm";
 import { getDb, single } from "../../db/db.js";
 import { consents, type ConsentType } from "./consent.model.js";
 import type { ConsentData } from "./consent.schema.js";
@@ -53,6 +53,20 @@ export const findByIdForPatient = async (
     .limit(1);
 
   return consent ?? null;
+};
+
+export const findEarliestCollectedAt = async (
+  ownerId: string,
+  patientId: string,
+) => {
+  const [row] = await getDb()
+    .select({ collectedAt: min(consents.collectedAt) })
+    .from(consents)
+    .where(
+      and(eq(consents.ownerId, ownerId), eq(consents.patientId, patientId)),
+    );
+
+  return row?.collectedAt ?? null;
 };
 
 const selectActive = (ownerId: string, patientId: string, type: ConsentType) =>

@@ -35,12 +35,17 @@ export const save = async (ownerId: string, data: PatientData) => {
   );
 };
 
-export const findByIdForOwner = async (id: string, ownerId: string) => {
-  const [patient] = await getDb()
+export const findByIdForOwner = async (
+  id: string,
+  ownerId: string,
+  lock?: "update" | "share",
+) => {
+  const query = getDb()
     .select()
     .from(patients)
     .where(byIdForOwner(id, ownerId))
     .limit(1);
+  const [patient] = await (lock ? query.for(lock) : query);
 
   return patient ?? null;
 };

@@ -1,12 +1,15 @@
 import * as patientRepository from "./patient.repository.js";
 import * as auditLogService from "../audit/auditLog.service.js";
+import * as consentRepository from "../consent/consent.repository.js";
 import type { Patient } from "./patient.model.js";
 import type { ListPatientsQuery, PatientData } from "./patient.schema.js";
 import {
   ConflictException,
   NotFoundException,
+  UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
 import { AppLogger } from "../../shared/appLogger.js";
+import { messages } from "../../shared/messages.js";
 import { withOwnerScope } from "../../db/db.js";
 
 export const toPatientResponse = (patient: Patient) => ({
@@ -29,6 +32,27 @@ const findPatientOrThrow = async (ownerId: string, patientId: string) => {
   }
 
   return patient;
+};
+
+const assertBirthDateBeforeConsents = async (
+  ownerId: string,
+  patientId: string,
+  birthDate: string,
+) => {
+  const earliest = await consentRepository.findEarliestCollectedAt(
+    ownerId,
+    patientId,
+  );
+
+  if (earliest && earliest < new Date(birthDate)) {
+    throw new UnprocessableEntityException("PATIENT_BIRTH_DATE_AFTER_CONSENT", [
+      {
+        location: "body",
+        path: "birthDate",
+        message: messages.PATIENT_BIRTH_DATE_AFTER_CONSENT,
+      },
+    ]);
+  }
 };
 
 export const assertPatientExists = async (
@@ -133,10 +157,22 @@ export const updatePatient = async (
   data: PatientData,
 ) => {
   const patient = await withOwnerScope(ownerId, async () => {
-    const current = await findPatientOrThrow(ownerId, patientId);
+    const current = await patientRepository.findByIdForOwner(
+      patientId,
+      ownerId,
+      "update",
+    );
+
+    if (!current) {
+      throw new NotFoundException("PATIENT_NOT_FOUND");
+    }
 
     if (current.archivedAt) {
       throw new ConflictException("PATIENT_ARCHIVED");
+    }
+
+    if (data.birthDate !== current.birthDate) {
+      await assertBirthDateBeforeConsents(ownerId, patientId, data.birthDate);
     }
 
     const patient = await patientRepository.update(patientId, ownerId, data);

@@ -9,6 +9,7 @@ import {
   UnprocessableEntityException,
 } from "../../shared/exceptions/index.js";
 import { AppLogger } from "../../shared/appLogger.js";
+import { messages } from "../../shared/messages.js";
 import { withOwnerScope } from "../../db/db.js";
 
 const AGE_OF_MAJORITY = 18;
@@ -42,8 +43,16 @@ const toConsentResponse = (consent: Consent, birthDate: string) => ({
   createdAt: consent.createdAt,
 });
 
-const findPatientOrThrow = async (ownerId: string, patientId: string) => {
-  const patient = await patientRepository.findByIdForOwner(patientId, ownerId);
+const findPatientOrThrow = async (
+  ownerId: string,
+  patientId: string,
+  lock?: "share",
+) => {
+  const patient = await patientRepository.findByIdForOwner(
+    patientId,
+    ownerId,
+    lock,
+  );
 
   if (!patient) {
     throw new NotFoundException("PATIENT_NOT_FOUND");
@@ -58,7 +67,7 @@ export const grantConsent = async (
   data: ConsentData,
 ) => {
   const consent = await withOwnerScope(ownerId, async () => {
-    const patient = await findPatientOrThrow(ownerId, patientId);
+    const patient = await findPatientOrThrow(ownerId, patientId, "share");
 
     if (patient.archivedAt) {
       throw new ConflictException("PATIENT_ARCHIVED");
@@ -67,6 +76,16 @@ export const grantConsent = async (
     const collectedAt = data.collectedAt
       ? new Date(data.collectedAt)
       : new Date();
+
+    if (collectedAt < new Date(patient.birthDate)) {
+      throw new UnprocessableEntityException("CONSENT_COLLECTED_BEFORE_BIRTH", [
+        {
+          location: "body",
+          path: "collectedAt",
+          message: messages.CONSENT_COLLECTED_BEFORE_BIRTH,
+        },
+      ]);
+    }
 
     if (
       data.grantor === "patient" &&

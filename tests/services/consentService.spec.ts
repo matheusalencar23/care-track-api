@@ -126,6 +126,7 @@ describe("consentService", () => {
       expect(patientRepository.findByIdForOwner).toHaveBeenCalledWith(
         patientId,
         "owner-1",
+        "share",
       );
       expect(consentRepository.save).toHaveBeenCalledWith(
         "owner-1",
@@ -183,6 +184,28 @@ describe("consentService", () => {
       await expect(
         grantConsent("owner-1", patientId, consentData),
       ).rejects.toThrow(messages.PATIENT_ARCHIVED);
+      expect(consentRepository.save).not.toHaveBeenCalled();
+    });
+
+    it("should refuse a collection date before the birth", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(
+        buildPatient("2010-01-01"),
+      );
+
+      const promise = grantConsent("owner-1", patientId, {
+        ...consentData,
+        grantor: "legal_representative",
+        representativeName: "Ana Souza",
+        collectedAt: "2009-12-31T23:59:59Z",
+      });
+
+      await expect(promise).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      await expect(promise).rejects.toMatchObject({
+        code: "CONSENT_COLLECTED_BEFORE_BIRTH",
+      });
+      expect(consentRepository.findActiveForUpdate).not.toHaveBeenCalled();
       expect(consentRepository.save).not.toHaveBeenCalled();
     });
 

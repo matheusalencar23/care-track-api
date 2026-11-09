@@ -1,9 +1,5 @@
 import z from "zod";
-import {
-  ApiOperation,
-  component,
-  errorResponse,
-} from "../../docs/apiDocs.js";
+import { ApiOperation, component, errorResponse } from "../../docs/apiDocs.js";
 import {
   ArchivePatientSchema,
   CreatePatientSchema,
@@ -86,7 +82,7 @@ export const patientOperations: ApiOperation[] = [
     tag: "Pacientes",
     summary: "Atualiza os dados cadastrais",
     description:
-      "Substitui todos os dados cadastrais: campos opcionais omitidos ficam vazios.",
+      "Substitui todos os dados cadastrais: campos opcionais omitidos ficam vazios. Uma nova `birthDate` não pode ser posterior à data de coleta de nenhum consentimento do paciente, inclusive os revogados (422 `PATIENT_BIRTH_DATE_AFTER_CONSENT`, no campo `birthDate`).",
     authenticated: true,
     request: UpdatePatientSchema,
     responses: {

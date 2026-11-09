@@ -267,6 +267,147 @@ describe("consents", () => {
     });
   });
 
+  describe("collection date and birth date", () => {
+    const patient = { name: "Carla Lima", birthDate: "2000-06-15" };
+
+    it("should refuse a collection date before the birth", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, patient);
+
+      const response = await agent
+        .post(consentsUrl(patientId))
+        .send({
+          ...imageConsent,
+          grantor: "legal_representative",
+          representativeName: "Ana Lima",
+          collectedAt: "2000-06-14T23:59:59Z",
+        })
+        .expect(422);
+
+      expect(response.body).toMatchObject({
+        code: "CONSENT_COLLECTED_BEFORE_BIRTH",
+        errors: [
+          {
+            location: "body",
+            path: "collectedAt",
+            message: messages.CONSENT_COLLECTED_BEFORE_BIRTH,
+          },
+        ],
+      });
+      expect(await testDb().select().from(consents)).toEqual([]);
+    });
+
+    it("should accept a collection date on the day of birth", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, patient);
+
+      await agent
+        .post(consentsUrl(patientId))
+        .send({
+          ...imageConsent,
+          grantor: "legal_representative",
+          representativeName: "Ana Lima",
+          collectedAt: "2000-06-15T00:00:00Z",
+        })
+        .expect(201);
+    });
+
+    it("should refuse moving the birth date after a consent, even a revoked one", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, patient);
+      const granted = await agent
+        .post(consentsUrl(patientId))
+        .send({ ...imageConsent, collectedAt: "2020-03-10T12:00:00Z" })
+        .expect(201);
+      await agent
+        .post(`${consentsUrl(patientId)}/${granted.body.id}/revoke`)
+        .expect(200);
+
+      const response = await agent
+        .put(`${API}/patients/${patientId}`)
+        .send({ ...patient, birthDate: "2020-03-11" })
+        .expect(422);
+
+      expect(response.body).toMatchObject({
+        code: "PATIENT_BIRTH_DATE_AFTER_CONSENT",
+        errors: [
+          {
+            location: "body",
+            path: "birthDate",
+            message: messages.PATIENT_BIRTH_DATE_AFTER_CONSENT,
+          },
+        ],
+      });
+      const stored = await agent
+        .get(`${API}/patients/${patientId}`)
+        .expect(200);
+      expect(stored.body.birthDate).toBe(patient.birthDate);
+    });
+
+    it("should accept a birth date on the day of the earliest consent", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, patient);
+      await agent
+        .post(consentsUrl(patientId))
+        .send({ ...imageConsent, collectedAt: "2020-03-10T12:00:00Z" })
+        .expect(201);
+
+      await agent
+        .put(`${API}/patients/${patientId}`)
+        .send({ ...patient, birthDate: "2001-03-10" })
+        .expect(200);
+      await agent
+        .put(`${API}/patients/${patientId}`)
+        .send({ ...patient, birthDate: "2020-03-10" })
+        .expect(200);
+    });
+
+    it("should keep other edits possible when the birth date does not change", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, patient);
+      await agent
+        .post(consentsUrl(patientId))
+        .send({ ...imageConsent, collectedAt: "2020-03-10T12:00:00Z" })
+        .expect(201);
+      await adminQuery(
+        "UPDATE patients SET birth_date = '2021-01-01' WHERE id = $1",
+        [patientId],
+      );
+
+      await agent
+        .put(`${API}/patients/${patientId}`)
+        .send({ ...patient, birthDate: "2021-01-01", phone: "11987654321" })
+        .expect(200);
+    });
+
+    it("should not let a consent and a birth date change cross each other", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent, patient);
+
+      const [consent, edit] = await Promise.all([
+        agent
+          .post(consentsUrl(patientId))
+          .send({ ...imageConsent, collectedAt: "2020-03-10T12:00:00Z" }),
+        agent
+          .put(`${API}/patients/${patientId}`)
+          .send({ ...patient, birthDate: "2021-01-01" }),
+      ]);
+
+      expect([consent.status, edit.status]).not.toEqual([201, 200]);
+      const [stored] = await adminQuery(
+        `SELECT p.birth_date::text AS birth_date, min(c.collected_at) AS collected_at
+           FROM patients p LEFT JOIN consents c ON c.patient_id = p.id
+          WHERE p.id = $1 GROUP BY p.birth_date`,
+        [patientId],
+      ).then(({ rows }) => rows);
+      if (stored.collected_at) {
+        expect(
+          new Date(stored.collected_at) >= new Date(stored.birth_date),
+        ).toBe(true);
+      }
+    });
+  });
+
   describe("renewal at the age of majority", () => {
     const formerMinor = { name: "Carla Lima", birthDate: "2000-06-15" };
     const representativeConsent = {

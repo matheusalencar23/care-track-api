@@ -59,7 +59,7 @@ export const consentOperations: ApiOperation[] = [
         "Paciente arquivado, ou já existe um consentimento ativo do mesmo tipo que não precisa de renovação.",
       ),
       422: validationErrorResponse(
-        "Dados inválidos, ou paciente menor de idade consentindo sem o responsável legal.",
+        "Dados inválidos, `collectedAt` anterior ao nascimento do paciente (`CONSENT_COLLECTED_BEFORE_BIRTH`, no campo `collectedAt`), ou paciente menor de idade consentindo sem o responsável legal.",
       ),
     },
   },

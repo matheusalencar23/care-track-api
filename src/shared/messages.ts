@@ -20,6 +20,12 @@ export const messages = {
 
   CONSENT_ALREADY_REVOKED: "Este consentimento já foi revogado.",
 
+  CONSENT_COLLECTED_BEFORE_BIRTH:
+    "A data da coleta não pode ser anterior ao nascimento do paciente.",
+
+  PATIENT_BIRTH_DATE_AFTER_CONSENT:
+    "A data de nascimento não pode ser posterior à coleta de um consentimento do paciente.",
+
   CONSENT_REQUIRES_REPRESENTATIVE:
     "O paciente é menor de idade: o consentimento deve ser dado pelo responsável legal.",
 

@@ -12,9 +12,11 @@ import {
 } from "../../src/modules/patient/patient.service.js";
 import * as patientRepository from "../../src/modules/patient/patient.repository.js";
 import * as auditLogService from "../../src/modules/audit/auditLog.service.js";
+import * as consentRepository from "../../src/modules/consent/consent.repository.js";
 import {
   ConflictException,
   NotFoundException,
+  UnprocessableEntityException,
 } from "../../src/shared/exceptions/index.js";
 import { messages } from "../../src/shared/messages.js";
 import { withOwnerScope } from "../../src/db/db.js";
@@ -30,6 +32,10 @@ vi.mock("../../src/modules/patient/patient.repository.js", () => ({
 vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
   record: vi.fn(),
   recordMany: vi.fn(),
+}));
+
+vi.mock("../../src/modules/consent/consent.repository.js", () => ({
+  findEarliestCollectedAt: vi.fn(),
 }));
 
 vi.mock(
@@ -287,7 +293,9 @@ describe("patientService", () => {
       expect(patientRepository.findByIdForOwner).toHaveBeenCalledWith(
         "patient-1",
         "nurse-1",
+        "update",
       );
+      expect(consentRepository.findEarliestCollectedAt).not.toHaveBeenCalled();
       expect(patientRepository.update).toHaveBeenCalledWith(
         "patient-1",
         "nurse-1",
@@ -322,6 +330,49 @@ describe("patientService", () => {
       ).rejects.toThrow(messages.PATIENT_ARCHIVED);
       expect(patientRepository.update).not.toHaveBeenCalled();
       expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it("should refuse a new birth date after the earliest consent", async () => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(patient);
+      vi.mocked(consentRepository.findEarliestCollectedAt).mockResolvedValue(
+        new Date("2020-03-10T12:00:00Z"),
+      );
+
+      const promise = updatePatient("nurse-1", "patient-1", {
+        ...patientData,
+        birthDate: "2020-03-11",
+      });
+
+      await expect(promise).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      await expect(promise).rejects.toMatchObject({
+        code: "PATIENT_BIRTH_DATE_AFTER_CONSENT",
+      });
+      expect(consentRepository.findEarliestCollectedAt).toHaveBeenCalledWith(
+        "nurse-1",
+        "patient-1",
+      );
+      expect(patientRepository.update).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["no consent", null],
+      ["a consent on the new birth date", new Date("2020-03-11T00:00:00Z")],
+    ])("should accept a new birth date with %s", async (_name, earliest) => {
+      vi.mocked(patientRepository.findByIdForOwner).mockResolvedValue(patient);
+      vi.mocked(patientRepository.update).mockResolvedValue(patient);
+      vi.mocked(consentRepository.findEarliestCollectedAt).mockResolvedValue(
+        earliest,
+      );
+
+      await updatePatient("nurse-1", "patient-1", {
+        ...patientData,
+        birthDate: "2020-03-11",
+      });
+
+      expect(patientRepository.update).toHaveBeenCalled();
     });
   });
 
