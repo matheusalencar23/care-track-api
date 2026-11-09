@@ -37,6 +37,12 @@ vi.mock("../../src/modules/audit/auditLog.service.js", () => ({
   record: vi.fn(),
 }));
 
+vi.mock("../../src/modules/attachment/attachment.service.js", () => ({
+  linkToRecord: async () => [],
+  listForRecords: async () => new Map(),
+  toAttachmentResponse: (attachment: unknown) => attachment,
+}));
+
 vi.mock(
   "../../src/db/db.js",
   async () => (await import("../helpers/dbMock.js")).dbModuleMock,
@@ -128,6 +134,7 @@ describe("recordService", () => {
         voidedAt: null,
         voidReason: null,
         voidReasonDetails: null,
+        attachments: [],
       });
       expect(withOwnerScope).toHaveBeenCalledWith(
         "owner-1",

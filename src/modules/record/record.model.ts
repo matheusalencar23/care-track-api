@@ -49,6 +49,11 @@ export const records = pgTable(
   },
   (table) => [
     unique("records_owner_id_id_unique").on(table.ownerId, table.id),
+    unique("records_owner_id_patient_id_id_unique").on(
+      table.ownerId,
+      table.patientId,
+      table.id,
+    ),
     foreignKey({
       name: "records_patient_fk",
       columns: [table.ownerId, table.patientId],

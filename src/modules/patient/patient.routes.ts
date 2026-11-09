@@ -13,6 +13,7 @@ import { authenticationMiddleware } from "../auth/auth.middleware.js";
 import { userLimiter } from "../../middlewares/rateLimit.middleware.js";
 import consentRoutes from "../consent/consent.routes.js";
 import recordRoutes from "../record/record.routes.js";
+import attachmentRoutes from "../attachment/attachment.routes.js";
 
 const routes = Router();
 
@@ -58,5 +59,7 @@ routes.post(
 routes.use("/:id/consents", consentRoutes);
 
 routes.use("/:id/records", recordRoutes);
+
+routes.use("/:id/attachments", attachmentRoutes);
 
 export default routes;

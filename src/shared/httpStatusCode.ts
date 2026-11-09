@@ -16,6 +16,7 @@ export enum HTTPStatusCode {
   RequestTimeout = 408,
   Conflict = 409,
   Gone = 410,
+  PayloadTooLarge = 413,
   UnprocessableEntity = 422,
   TooManyRequests = 429,
   InternalServerError = 500,

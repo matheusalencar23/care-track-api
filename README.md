@@ -5,6 +5,7 @@
 - Node `^22.14.0 || >=24.10.0` (exigência do semantic-release). O CI e a imagem usam o Node 24 (`.nvmrc`), que traz o npm 11 — a mesma versão major com que o Dependabot gera o `package-lock.json`
 - PostgreSQL 18 (usa `uuidv7()`)
 - Docker, para o Postgres local e para os testes de integração
+- Perl, usado pelo ExifTool para remover os metadados das imagens (a imagem Docker já o instala)
 
 ## Configuração
 
@@ -19,6 +20,9 @@ Copie `.env.example` para `.env` e preencha:
 - `PASSWORD_RESET_HOST` — URL base usada no link de redefinição de senha
 - `RESEND_API_KEY` — chave da API do Resend
 - `RESEND_EMAIL_ORIGIN` — remetente dos e-mails transacionais
+- `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` e `S3_FORCE_PATH_STYLE` — armazenamento de arquivos compatível com S3 (anexos)
+- `S3_PUBLIC_ENDPOINT` — opcional; endereço usado nas URLs assinadas quando o navegador e a API acessam o armazenamento por endereços diferentes (padrão: `S3_ENDPOINT`)
+- `ATTACHMENT_MAX_SIZE_BYTES` — opcional; tamanho máximo de um anexo (padrão: 200 MiB)
 
 `TRUST_PROXY` é opcional e diz em quais intermediários (balanceador, servidor do front) a API confia para descobrir o IP do cliente pelo header `X-Forwarded-For`. Esse IP vai para o log de auditoria e para os rate limits por IP. Aceita o número de intermediários entre o cliente e a API (padrão `1`) ou uma lista de IPs/sub-redes confiáveis (ex.: `10.0.0.0/8, loopback`), que é a opção mais segura quando os endereços são conhecidos. `true`/`false` são recusados: confiar em qualquer um permitiria forjar o IP. Com o valor errado, ou todos os acessos aparecem com o IP do intermediário (o limite de login passa a ser dividido por todos os usuários), ou o cliente consegue inventar o próprio IP.
 
@@ -26,16 +30,23 @@ Copie `.env.example` para `.env` e preencha:
 
 ## Rodando localmente
 
-Suba o Postgres do `docker-compose.yml` e aponte o `.env` para ele:
+Suba o Postgres e o armazenamento de arquivos (SeaweedFS, compatível com S3) do `docker-compose.yml` e aponte o `.env` para eles:
 
 ```
 DATABASE_URL=postgres://care_track_app:care_track_app@localhost:5432/care_track
 DATABASE_MIGRATION_URL=postgres://care_track:care_track@localhost:5432/care_track
+
+S3_ENDPOINT=http://localhost:8333
+S3_REGION=us-east-1
+S3_BUCKET=care-track-files
+S3_ACCESS_KEY_ID=care_track
+S3_SECRET_ACCESS_KEY=care_track_secret
+S3_FORCE_PATH_STYLE=true
 ```
 
 
 ```bash
-docker compose up -d   # sobe só o Postgres, com os dados em um volume
+docker compose up -d   # sobe o Postgres e o SeaweedFS (bucket care-track-files), com os dados em volumes
 npm install
 npm run db:migrate     # cria as tabelas, as políticas e os privilégios
 npm run dev
@@ -102,6 +113,8 @@ Os erros respondem `{ code, message, timestamp }` (o 422 de validação traz tam
 | GET    | `/api/v1/patients/:id/consents`                   | Histórico de consentimentos do paciente | sim         | 300/min/usuário  |
 | POST   | `/api/v1/patients/:id/consents`                   | Registra um consentimento               | sim         | 300/min/usuário  |
 | POST   | `/api/v1/patients/:id/consents/:consentId/revoke` | Revoga um consentimento                 | sim         | 300/min/usuário  |
+| POST   | `/api/v1/patients/:id/attachments`                | Envia um anexo (multipart, campo `file`) | sim         | 300/min/usuário  |
+| GET    | `/api/v1/patients/:id/attachments/:attachmentId/download` | Gera a URL de download de um anexo | sim      | 300/min/usuário  |
 | GET    | `/api/v1/health`                                  | Health check (API, banco e versão)      | não         | —                |
 
 Nas rotas públicas, os limites são por IP. Nas autenticadas, o limite é por usuário (300 requisições por minuto) e não consome o limite por IP, porque numa instituição todos os profissionais podem sair pelo mesmo IP. Todos ficam desativados com `NODE_ENV=development`. O login só é aceito depois que o e-mail for confirmado. O `/users/resend` responde 200 mesmo para e-mails não cadastrados (exceto quando estoura o limite por IP, que retorna 429) e só envia um novo e-mail se o anterior tiver mais de 60 segundos.

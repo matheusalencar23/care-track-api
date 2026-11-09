@@ -79,6 +79,7 @@ describe("recordController", () => {
         },
         "patient-1",
         "Paciente estável",
+        [],
       );
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(record);

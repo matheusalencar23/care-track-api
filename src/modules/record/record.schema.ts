@@ -1,5 +1,6 @@
 import z from "zod";
 import { RECORD_VOID_REASONS } from "./record.model.js";
+import { attachmentIdsSchema } from "../attachment/attachment.schema.js";
 
 export const RECORD_CONTENT_MAX_LENGTH = 20_000;
 export const RECORD_REASON_MAX_LENGTH = 500;
@@ -23,9 +24,19 @@ const contentSchema = z
 
 export const CreateRecordSchema = z.object({
   params: patientParamsSchema,
-  body: z.object({
-    content: contentSchema,
-  }),
+  body: z
+    .object({
+      content: contentSchema.optional(),
+      attachmentIds: attachmentIdsSchema.optional(),
+    })
+    .refine(
+      (body) =>
+        body.content !== undefined || (body.attachmentIds?.length ?? 0) > 0,
+      {
+        message: "Informe o conteúdo do registro ou ao menos um anexo",
+        path: ["content"],
+      },
+    ),
 });
 
 export const ListRecordsQuerySchema = z.object({

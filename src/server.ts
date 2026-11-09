@@ -3,6 +3,9 @@ import { errorDetails } from "./shared/errorDetails.js";
 import { closeDb, connectDb } from "./db/db.js";
 import app from "./app.js";
 import { PORT } from "./config/secrets.js";
+import { closeFileProcessing } from "./modules/attachment/attachment.file.js";
+
+const REQUEST_TIMEOUT_MS = 30 * 60 * 1000;
 
 const bootstrap = async () => {
   try {
@@ -11,6 +14,8 @@ const bootstrap = async () => {
     const server = app.listen(PORT, () => {
       AppLogger.info(`Server is runnning on port ${PORT}`);
     });
+
+    server.requestTimeout = REQUEST_TIMEOUT_MS;
 
     let isShuttingDown = false;
 
@@ -22,6 +27,7 @@ const bootstrap = async () => {
 
       server.close(async () => {
         await closeDb();
+        await closeFileProcessing();
         AppLogger.info("Shutdown complete");
         process.exit(0);
       });

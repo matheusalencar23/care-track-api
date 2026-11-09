@@ -20,6 +20,10 @@ export const AUDIT_ACTIONS = [
   "record.update",
   "record.list_versions",
   "record.void",
+  "attachment.create",
+  "attachment.upload",
+  "attachment.link",
+  "attachment.download",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -29,6 +33,7 @@ export const AUDIT_RESOURCE_TYPES = [
   "patient",
   "consent",
   "record",
+  "attachment",
 ] as const;
 
 export type AuditResourceType = (typeof AUDIT_RESOURCE_TYPES)[number];

@@ -35,6 +35,18 @@ export const messages = {
   RECORD_CONTENT_UNCHANGED:
     "O conteúdo informado é igual ao da versão atual do registro.",
 
+  ATTACHMENT_NOT_FOUND: "Anexo não encontrado!",
+
+  ATTACHMENT_NOT_AVAILABLE:
+    "Um dos anexos informados não está disponível para este registro.",
+
+  ATTACHMENT_TYPE_NOT_ALLOWED: "Este tipo de arquivo não é permitido.",
+
+  ATTACHMENT_CONTENT_INVALID:
+    "Não foi possível processar o arquivo. Ele pode estar corrompido.",
+
+  ATTACHMENT_TOO_LARGE: "O arquivo excede o tamanho máximo permitido.",
+
   INVALID_LINK_TOKEN: "Link inválido ou expirado!",
 
   EMAIL_ALREADY_VERIFIED: "Este e-mail já foi confirmado!",

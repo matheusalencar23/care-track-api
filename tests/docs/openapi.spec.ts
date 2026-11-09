@@ -1,6 +1,7 @@
 import type { Router } from "express";
 import { describe, expect, it } from "vitest";
 import { apiOperations, buildOpenApiDocument } from "../../src/docs/openapi.js";
+import attachmentRoutes from "../../src/modules/attachment/attachment.routes.js";
 import authRoutes from "../../src/modules/auth/auth.routes.js";
 import consentRoutes from "../../src/modules/consent/consent.routes.js";
 import patientRoutes from "../../src/modules/patient/patient.routes.js";
@@ -13,6 +14,7 @@ const mounts: [string, Router][] = [
   ["/patients", patientRoutes],
   ["/patients/:id/consents", consentRoutes],
   ["/patients/:id/records", recordRoutes],
+  ["/patients/:id/attachments", attachmentRoutes],
 ];
 
 interface RouteLayer {

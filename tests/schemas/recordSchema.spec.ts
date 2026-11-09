@@ -30,7 +30,21 @@ describe("CreateRecordSchema", () => {
   });
 
   it.each([
-    [{}, "Conteúdo do registro inválido"],
+    [{}, "Informe o conteúdo do registro ou ao menos um anexo"],
+    [
+      { attachmentIds: [] },
+      "Informe o conteúdo do registro ou ao menos um anexo",
+    ],
+    [{ attachmentIds: ["123"] }, "ID de anexo inválido"],
+    [
+      {
+        attachmentIds: [
+          "0190a3b8-6f5e-7000-8000-000000000000",
+          "0190a3b8-6f5e-7000-8000-000000000000",
+        ],
+      },
+      "A lista de anexos tem itens repetidos",
+    ],
     [{ content: 123 }, "Conteúdo do registro inválido"],
     [{ content: "" }, "O conteúdo do registro é obrigatório"],
     [{ content: "  \n " }, "O conteúdo do registro é obrigatório"],

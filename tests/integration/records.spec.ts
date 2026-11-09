@@ -86,6 +86,7 @@ describe("records", () => {
       voidedAt: null,
       voidReason: null,
       voidReasonDetails: null,
+      attachments: [],
     });
     expect(new Date(response.body.createdAt).getTime()).toBeGreaterThanOrEqual(
       before.getTime() - 1000,

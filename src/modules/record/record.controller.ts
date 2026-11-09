@@ -26,7 +26,8 @@ export const create = async (
     const record = await recordService.createRecord(
       toAuthor(req.user),
       req.params["id"] as string,
-      req.body.content.trim(),
+      req.body.content?.trim() ?? null,
+      req.body.attachmentIds ?? [],
     );
 
     return res.status(201).json(record);

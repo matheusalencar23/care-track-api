@@ -5,6 +5,7 @@ import { consentOperations } from "../modules/consent/consent.docs.js";
 import { healthOperations } from "./health.docs.js";
 import { patientOperations } from "../modules/patient/patient.docs.js";
 import { recordOperations } from "../modules/record/record.docs.js";
+import { attachmentOperations } from "../modules/attachment/attachment.docs.js";
 import { userOperations } from "../modules/user/user.docs.js";
 import {
   ApiOperation,
@@ -24,6 +25,7 @@ export const apiOperations: ApiOperation[] = [
   ...patientOperations,
   ...consentOperations,
   ...recordOperations,
+  ...attachmentOperations,
 ];
 
 const tags = [
@@ -118,14 +120,14 @@ const buildParameters = (
   }));
 };
 
-const buildRequestBody = (schema: z.ZodType | undefined) => {
+const buildRequestBody = (schema: z.ZodType | undefined, contentType: string) => {
   if (!schema) {
     return undefined;
   }
 
   return {
     required: !schema.safeParse(undefined).success,
-    content: { "application/json": { schema: toJsonSchema(schema) } },
+    content: { [contentType]: { schema: toJsonSchema(schema) } },
   };
 };
 
@@ -200,7 +202,10 @@ const buildResponses = (operation: ApiOperation) => {
 };
 
 const buildOperation = (operation: ApiOperation) => {
-  const requestBody = buildRequestBody(requestPart(operation.request, "body"));
+  const requestBody = buildRequestBody(
+    requestPart(operation.request, "body"),
+    operation.multipart ? "multipart/form-data" : "application/json",
+  );
   const parameters = [
     ...buildParameters("path", requestPart(operation.request, "params")),
     ...buildParameters("query", requestPart(operation.request, "query")),

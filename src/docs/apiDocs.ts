@@ -21,6 +21,7 @@ export interface ApiOperation {
   summary: string;
   description?: string;
   request?: z.ZodObject;
+  multipart?: boolean;
   authenticated?: boolean;
   rateLimited?: boolean;
   responses: Record<number, ApiResponse>;

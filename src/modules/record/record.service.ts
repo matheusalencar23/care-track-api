@@ -1,7 +1,9 @@
 import * as recordRepository from "./record.repository.js";
 import * as patientService from "../patient/patient.service.js";
 import * as auditLogService from "../audit/auditLog.service.js";
+import * as attachmentService from "../attachment/attachment.service.js";
 import type { PatientRecord, RecordVersion } from "./record.model.js";
+import type { Attachment } from "../attachment/attachment.model.js";
 import type { RecordAuthor } from "./record.repository.js";
 import type {
   ListRecordsQuery,
@@ -19,9 +21,14 @@ import { withOwnerScope } from "../../db/db.js";
 interface RecordWithVersion {
   record: PatientRecord;
   version: RecordVersion;
+  attachments: Attachment[];
 }
 
-export const toRecordResponse = ({ record, version }: RecordWithVersion) => ({
+export const toRecordResponse = ({
+  record,
+  version,
+  attachments,
+}: RecordWithVersion) => ({
   id: record.id,
   patientId: record.patientId,
   content: version.content,
@@ -37,6 +44,7 @@ export const toRecordResponse = ({ record, version }: RecordWithVersion) => ({
   voidedAt: record.voidedAt,
   voidReason: record.voidReason,
   voidReasonDetails: record.voidReasonDetails,
+  attachments: attachments.map(attachmentService.toAttachmentResponse),
 });
 
 export const toRecordVersionResponse = (version: RecordVersion) => ({
@@ -73,7 +81,8 @@ const findRecordOrThrow = async (
 export const createRecord = async (
   author: RecordAuthor,
   patientId: string,
-  content: string,
+  content: string | null,
+  attachmentIds: string[] = [],
 ) => {
   const ownerId = author.id;
 
@@ -95,7 +104,14 @@ export const createRecord = async (
       patientId,
     });
 
-    return created;
+    const attachments = await attachmentService.linkToRecord(
+      ownerId,
+      patientId,
+      created.record.id,
+      attachmentIds,
+    );
+
+    return { ...created, attachments };
   });
   AppLogger.info("Record created", { recordId: created.record.id, patientId });
 
@@ -123,7 +139,18 @@ export const listRecords = async (
       patientId,
     });
 
-    return page;
+    const attachments = await attachmentService.listForRecords(
+      ownerId,
+      page.items.map(({ record }) => record.id),
+    );
+
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...item,
+        attachments: attachments.get(item.record.id) ?? [],
+      })),
+    };
   });
 
   return {
@@ -177,7 +204,11 @@ export const updateRecord = async (
       patientId,
     });
 
-    return { record, version };
+    const attachments = await attachmentService.listForRecords(ownerId, [
+      record.id,
+    ]);
+
+    return { record, version, attachments: attachments.get(record.id) ?? [] };
   });
   AppLogger.info("Record updated", {
     recordId: updated.record.id,
@@ -251,7 +282,11 @@ export const voidRecord = async (
       patientId,
     });
 
-    return { record, version };
+    const attachments = await attachmentService.listForRecords(ownerId, [
+      record.id,
+    ]);
+
+    return { record, version, attachments: attachments.get(record.id) ?? [] };
   });
   AppLogger.info("Record voided", {
     recordId: voided.record.id,

@@ -7,6 +7,7 @@ import {
   validationErrorResponse,
 } from "../../docs/apiDocs.js";
 import { RECORD_VOID_REASONS } from "./record.model.js";
+import { AttachmentSchema } from "../attachment/attachment.docs.js";
 import {
   CreateRecordSchema,
   ListRecordsSchema,
@@ -33,6 +34,7 @@ const RecordSchema = component(
     voidedAt: z.iso.datetime().nullable(),
     voidReason: z.enum(RECORD_VOID_REASONS).nullable(),
     voidReasonDetails: z.string().nullable(),
+    attachments: z.array(AttachmentSchema),
   }),
 );
 
@@ -73,13 +75,13 @@ export const recordOperations: ApiOperation[] = [
     tag: "Registros",
     summary: "Cria um registro na linha do tempo",
     description:
-      "O autor (nome, COREN e UF) e o horário são definidos pelo servidor.",
+      "O autor (nome, COREN e UF) e o horário são definidos pelo servidor. Exige `content` ou ao menos um item em `attachmentIds`. Os anexos precisam ser do mesmo paciente e não estar ligados a outro registro.",
     authenticated: true,
     request: CreateRecordSchema,
     responses: {
       201: { description: "Registro criado.", schema: RecordSchema },
       404: patientNotFound,
-      409: errorResponse("Paciente arquivado."),
+      409: errorResponse("Paciente arquivado ou anexo indisponível."),
     },
   },
   {

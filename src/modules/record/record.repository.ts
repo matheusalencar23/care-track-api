@@ -19,7 +19,7 @@ const insertVersion = async (
   ownerId: string,
   recordId: string,
   author: RecordAuthor,
-  content: string,
+  content: string | null,
   reason: string | null,
 ) => {
   return single(
@@ -43,7 +43,7 @@ export const save = async (
   ownerId: string,
   patientId: string,
   author: RecordAuthor,
-  content: string,
+  content: string | null,
 ) => {
   const record = single(
     await getDb()
