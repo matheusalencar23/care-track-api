@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../../shared/appLogger.js";
 import * as attachmentService from "./attachment.service.js";
 import { UnauthorizedException } from "../../shared/exceptions/index.js";
+import { AttachmentDownloadQuerySchema } from "./attachment.schema.js";
 
 export const assertCanUpload = async (
   req: Request,
@@ -65,6 +66,7 @@ export const download = async (
       req.user.id,
       req.params["id"] as string,
       req.params["attachmentId"] as string,
+      AttachmentDownloadQuerySchema.parse(req.query).disposition,
     );
 
     return res.json(attachment);

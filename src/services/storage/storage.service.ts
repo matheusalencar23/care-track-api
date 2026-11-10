@@ -50,13 +50,16 @@ export const putObject = async (
   );
 };
 
-export const createDownloadUrl = async (key: string) => {
+export const createDownloadUrl = async (
+  key: string,
+  disposition: "attachment" | "inline" = "attachment",
+) => {
   return await getSignedUrl(
     signingClient,
     new GetObjectCommand({
       Bucket: S3_BUCKET,
       Key: key,
-      ResponseContentDisposition: "attachment",
+      ResponseContentDisposition: disposition,
     }),
     { expiresIn: DOWNLOAD_URL_TTL_SECONDS },
   );

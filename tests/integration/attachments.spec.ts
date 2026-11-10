@@ -713,6 +713,42 @@ describe("Attachments", () => {
       );
     });
 
+    it("should force the download by default and display the file with disposition=inline", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+      const attachmentId = await upload(agent, patientId);
+
+      const standard = await agent
+        .get(downloadUrl(patientId, attachmentId))
+        .expect(200);
+      const inline = await agent
+        .get(downloadUrl(patientId, attachmentId))
+        .query({ disposition: "inline" })
+        .expect(200);
+
+      const standardFile = await fetch(standard.body.downloadUrl);
+      const inlineFile = await fetch(inline.body.downloadUrl);
+
+      expect(standardFile.headers.get("content-disposition")).toBe("attachment");
+      expect(inlineFile.headers.get("content-disposition")).toBe("inline");
+      expect(inlineFile.headers.get("content-type")).toBe("image/png");
+    });
+
+    it("should reject an unknown disposition", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+      const attachmentId = await upload(agent, patientId);
+
+      const response = await agent
+        .get(downloadUrl(patientId, attachmentId))
+        .query({ disposition: "render" })
+        .expect(422);
+
+      expect(response.body.errors).toEqual([
+        expect.objectContaining({ location: "query", path: "disposition" }),
+      ]);
+    });
+
     it("should not serve the file without a signature", async () => {
       const { agent } = await signedInAgent();
       const patientId = await createPatient(agent);

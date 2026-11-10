@@ -42,6 +42,20 @@ export const CreateAttachmentSchema = z.object({
   }),
 });
 
+export const ATTACHMENT_DISPOSITIONS = ["attachment", "inline"] as const;
+
+export type AttachmentDisposition = (typeof ATTACHMENT_DISPOSITIONS)[number];
+
+export const AttachmentDownloadQuerySchema = z.object({
+  disposition: z
+    .enum(ATTACHMENT_DISPOSITIONS, "Forma de abertura inválida")
+    .default("attachment"),
+});
+
 export const AttachmentParamsSchema = z.object({
   params: attachmentParamsSchema,
+});
+
+export const DownloadAttachmentSchema = AttachmentParamsSchema.extend({
+  query: AttachmentDownloadQuerySchema,
 });

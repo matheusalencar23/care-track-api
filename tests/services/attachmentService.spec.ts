@@ -169,5 +169,22 @@ describe("attachmentService.getDownload", () => {
     ).resolves.toMatchObject({ downloadUrl: "https://storage/signed" });
 
     expect(consentService.hasActiveConsent).not.toHaveBeenCalled();
+    expect(storageService.createDownloadUrl).toHaveBeenCalledWith(
+      "attachments/key",
+      "attachment",
+    );
+  });
+
+  it("should sign an inline URL when asked", async () => {
+    vi.mocked(attachmentRepository.findByIdForPatient).mockResolvedValue(
+      stored("application/pdf"),
+    );
+
+    await getDownload("owner-1", "patient-1", "attachment-1", "inline");
+
+    expect(storageService.createDownloadUrl).toHaveBeenCalledWith(
+      "attachments/key",
+      "inline",
+    );
   });
 });

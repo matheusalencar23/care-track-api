@@ -7,7 +7,7 @@ import {
 } from "../../docs/apiDocs.js";
 import { ATTACHMENT_CONTENT_TYPES } from "./attachment.model.js";
 import {
-  AttachmentParamsSchema,
+  DownloadAttachmentSchema,
   PatientParamsSchema,
 } from "./attachment.schema.js";
 
@@ -77,9 +77,9 @@ export const attachmentOperations: ApiOperation[] = [
     tag: "Anexos",
     summary: "Gera a URL de download de um anexo",
     description:
-      "A URL é assinada e de curta duração. Cada chamada é registrada na auditoria. Fotos e vídeos só são liberados com um consentimento `image_capture` ativo e sem `needsRenewal`; PDFs não dependem dele.",
+      "A URL é assinada e de curta duração. Cada chamada é registrada na auditoria. Fotos e vídeos só são liberados com um consentimento `image_capture` ativo e sem `needsRenewal`; PDFs não dependem dele. Por padrão, a URL força o download (`Content-Disposition: attachment`); com `disposition=inline`, o navegador exibe o arquivo, para a pré-visualização de PDFs no front.",
     authenticated: true,
-    request: AttachmentParamsSchema,
+    request: DownloadAttachmentSchema,
     responses: {
       200: {
         description: "URL de download.",
@@ -89,6 +89,7 @@ export const attachmentOperations: ApiOperation[] = [
       409: errorResponse(
         "Foto ou vídeo sem consentimento de uso de imagem ativo (`ATTACHMENT_CONSENT_REQUIRED`).",
       ),
+      422: validationErrorResponse("ID inválido ou `disposition` inválida."),
     },
   },
 ];

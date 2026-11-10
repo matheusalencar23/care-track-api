@@ -6,6 +6,7 @@ import * as auditLogService from "../audit/auditLog.service.js";
 import * as storageService from "../../services/storage/storage.service.js";
 import * as attachmentFile from "./attachment.file.js";
 import type { Attachment } from "./attachment.model.js";
+import type { AttachmentDisposition } from "./attachment.schema.js";
 import {
   ConflictException,
   NotFoundException,
@@ -142,6 +143,7 @@ export const getDownload = async (
   ownerId: string,
   patientId: string,
   attachmentId: string,
+  disposition: AttachmentDisposition = "attachment",
 ) => {
   const attachment = await withOwnerScope(ownerId, async () => {
     const attachment = await findOrThrow(ownerId, patientId, attachmentId);
@@ -160,6 +162,7 @@ export const getDownload = async (
 
   const downloadUrl = await storageService.createDownloadUrl(
     attachment.storageKey,
+    disposition,
   );
 
   return {

@@ -2,7 +2,7 @@ import { Router } from "express";
 
 import * as attachmentController from "./attachment.controller.js";
 import {
-  AttachmentParamsSchema,
+  DownloadAttachmentSchema,
   CreateAttachmentSchema,
   PatientParamsSchema,
 } from "./attachment.schema.js";
@@ -22,7 +22,7 @@ routes.post(
 
 routes.get(
   "/:attachmentId/download",
-  schemaValidationMiddleware(AttachmentParamsSchema),
+  schemaValidationMiddleware(DownloadAttachmentSchema),
   attachmentController.download,
 );
 
