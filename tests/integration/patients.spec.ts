@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import app from "../../src/app.js";
 import { auditLogs } from "../../src/modules/audit/auditLog.model.js";
+import { patients } from "../../src/modules/patient/patient.model.js";
 import { messages } from "../../src/shared/messages.js";
 import { API, createVerifiedUser, findAuditLogs, userData } from "./helpers.js";
 import { countRows } from "./database.js";
@@ -112,10 +113,92 @@ describe("patients", () => {
     const { agent } = await signedInAgent();
 
     await agent.post(`${API}/patients`).send(patientData).expect(201);
-    await agent
+    const response = await agent
       .post(`${API}/patients`)
       .send({ ...patientData, cns: undefined })
       .expect(409);
+
+    expect(response.body).toEqual({
+      code: "PATIENT_CPF_ALREADY_EXISTS",
+      message: messages.PATIENT_CPF_ALREADY_EXISTS,
+      errors: [
+        {
+          location: "body",
+          path: "cpf",
+          message: messages.PATIENT_CPF_ALREADY_EXISTS,
+        },
+      ],
+      timestamp: expect.any(String),
+    });
+  });
+
+  it("should reject a duplicated Cartão SUS for the same nurse", async () => {
+    const { agent } = await signedInAgent();
+
+    await agent.post(`${API}/patients`).send(patientData).expect(201);
+    const response = await agent
+      .post(`${API}/patients`)
+      .send({ ...patientData, cpf: undefined })
+      .expect(409);
+
+    expect(response.body.code).toBe("PATIENT_CNS_ALREADY_EXISTS");
+    expect(response.body.errors).toEqual([
+      {
+        location: "body",
+        path: "cns",
+        message: messages.PATIENT_CNS_ALREADY_EXISTS,
+      },
+    ]);
+    expect(await countRows(patients)).toBe(1);
+  });
+
+  it("should reject updating a patient with another patient's CPF or Cartão SUS", async () => {
+    const { agent } = await signedInAgent();
+
+    await agent.post(`${API}/patients`).send(patientData).expect(201);
+    const other = await agent
+      .post(`${API}/patients`)
+      .send({ name: "Maria Souza", birthDate: "1960-01-01" })
+      .expect(201);
+
+    const cpf = await agent
+      .put(`${API}/patients/${other.body.id}`)
+      .send({
+        name: "Maria Souza",
+        birthDate: "1960-01-01",
+        cpf: patientData.cpf,
+      })
+      .expect(409);
+    expect(cpf.body.code).toBe("PATIENT_CPF_ALREADY_EXISTS");
+    expect(cpf.body.errors).toEqual([
+      expect.objectContaining({ location: "body", path: "cpf" }),
+    ]);
+
+    const cns = await agent
+      .put(`${API}/patients/${other.body.id}`)
+      .send({
+        name: "Maria Souza",
+        birthDate: "1960-01-01",
+        cns: patientData.cns,
+      })
+      .expect(409);
+    expect(cns.body.code).toBe("PATIENT_CNS_ALREADY_EXISTS");
+    expect(cns.body.errors).toEqual([
+      expect.objectContaining({ location: "body", path: "cns" }),
+    ]);
+
+    const stored = await agent
+      .get(`${API}/patients/${other.body.id}`)
+      .expect(200);
+    expect(stored.body).toMatchObject({ cpf: null, cns: null });
+  });
+
+  it("should allow the same CPF and Cartão SUS for patients of different nurses", async () => {
+    const { agent: owner } = await signedInAgent();
+    const { agent: other } = await signedInAgent({ email: "ana@example.com" });
+
+    await owner.post(`${API}/patients`).send(patientData).expect(201);
+    await other.post(`${API}/patients`).send(patientData).expect(201);
   });
 
   describe("listing", () => {
@@ -297,7 +380,11 @@ describe("patients", () => {
         .post(`${API}/patients/${created.body.id}/archive`)
         .expect(200);
 
-      await agent.post(`${API}/patients`).send(patientData).expect(409);
+      const response = await agent
+        .post(`${API}/patients`)
+        .send(patientData)
+        .expect(409);
+      expect(response.body.code).toBe("PATIENT_CPF_ALREADY_EXISTS");
     });
 
     it("should not let a nurse archive or unarchive another nurse's patient", async () => {

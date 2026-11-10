@@ -43,21 +43,36 @@ export const ErrorSchema = component(
   }),
 );
 
+const fieldErrorsSchema = z.array(
+  z.object({
+    location: z.enum(["body", "query", "params"]),
+    path: z.string().meta({
+      description:
+        "Caminho do campo dentro de `location`, separado por pontos (ex.: `representativeName`, `items.0.name`). Vazio quando o erro é do objeto inteiro.",
+    }),
+    message: z.string(),
+  }),
+);
+
 export const ValidationErrorSchema = component(
   "ValidationError",
   z.object({
     code: codeSchema,
     message: z.string(),
-    errors: z.array(
-      z.object({
-        location: z.enum(["body", "query", "params"]),
-        path: z.string().meta({
-          description:
-            "Caminho do campo dentro de `location`, separado por pontos (ex.: `representativeName`, `items.0.name`). Vazio quando o erro é do objeto inteiro.",
-        }),
-        message: z.string(),
-      }),
-    ),
+    errors: fieldErrorsSchema,
+    timestamp: z.iso.datetime(),
+  }),
+);
+
+export const ConflictErrorSchema = component(
+  "ConflictError",
+  z.object({
+    code: codeSchema,
+    message: z.string(),
+    errors: fieldErrorsSchema.optional().meta({
+      description:
+        "Presente quando o conflito é de um campo (ex.: CPF já cadastrado), no mesmo formato do 422.",
+    }),
     timestamp: z.iso.datetime(),
   }),
 );
@@ -73,6 +88,11 @@ export const MessageSchema = component(
 export const errorResponse = (description: string): ApiResponse => ({
   description,
   schema: ErrorSchema,
+});
+
+export const conflictErrorResponse = (description: string): ApiResponse => ({
+  description,
+  schema: ConflictErrorSchema,
 });
 
 export const validationErrorResponse = (description: string): ApiResponse => ({

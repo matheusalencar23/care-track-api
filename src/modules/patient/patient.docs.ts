@@ -1,5 +1,10 @@
 import z from "zod";
-import { ApiOperation, component, errorResponse } from "../../docs/apiDocs.js";
+import {
+  ApiOperation,
+  component,
+  conflictErrorResponse,
+  errorResponse,
+} from "../../docs/apiDocs.js";
 import {
   ArchivePatientSchema,
   CreatePatientSchema,
@@ -46,8 +51,8 @@ export const patientOperations: ApiOperation[] = [
     request: CreatePatientSchema,
     responses: {
       201: { description: "Paciente cadastrado.", schema: PatientSchema },
-      409: errorResponse(
-        "Já existe um paciente desta enfermeira com o mesmo CPF ou Cartão SUS.",
+      409: conflictErrorResponse(
+        "Já existe um paciente desta enfermeira com o mesmo CPF (`PATIENT_CPF_ALREADY_EXISTS`, no campo `cpf`) ou Cartão SUS (`PATIENT_CNS_ALREADY_EXISTS`, no campo `cns`).",
       ),
     },
   },
@@ -88,8 +93,8 @@ export const patientOperations: ApiOperation[] = [
     responses: {
       200: { description: "Paciente atualizado.", schema: PatientSchema },
       404: notFound,
-      409: errorResponse(
-        "Paciente arquivado, ou CPF/Cartão SUS já usado em outro paciente.",
+      409: conflictErrorResponse(
+        "Paciente arquivado (`PATIENT_ARCHIVED`), ou CPF (`PATIENT_CPF_ALREADY_EXISTS`, no campo `cpf`) ou Cartão SUS (`PATIENT_CNS_ALREADY_EXISTS`, no campo `cns`) já usado em outro paciente.",
       ),
     },
   },

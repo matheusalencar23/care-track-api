@@ -15,14 +15,17 @@ export const dbModuleMock = {
   single: vi.fn(<T>(rows: T[]) => rows[0]),
 };
 
-export const uniqueViolation = (value = "john@example.com") => {
+export const uniqueViolation = (
+  value = "john@example.com",
+  constraint = "users_email_unique",
+) => {
   const cause = new pg.DatabaseError(
-    'duplicate key value violates unique constraint "users_email_unique"',
+    `duplicate key value violates unique constraint "${constraint}"`,
     0,
     "error",
   );
   cause.code = "23505";
-  cause.constraint = "users_email_unique";
+  cause.constraint = constraint;
   cause.detail = `Key (email)=(${value}) already exists.`;
 
   return new DrizzleQueryError(

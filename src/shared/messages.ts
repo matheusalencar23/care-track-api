@@ -13,6 +13,11 @@ export const messages = {
 
   PATIENT_NOT_ARCHIVED: "Este paciente não está arquivado.",
 
+  PATIENT_CPF_ALREADY_EXISTS: "Já existe um paciente cadastrado com este CPF.",
+
+  PATIENT_CNS_ALREADY_EXISTS:
+    "Já existe um paciente cadastrado com este Cartão SUS.",
+
   CONSENT_NOT_FOUND: "Consentimento não encontrado!",
 
   CONSENT_ALREADY_ACTIVE:

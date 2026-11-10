@@ -13,6 +13,40 @@ import { getDb, single } from "../../db/db.js";
 import { patients } from "./patient.model.js";
 import type { ListPatientsQuery, PatientData } from "./patient.schema.js";
 import { escapeLike, normalizeForSearch } from "../../utils/string.utils.js";
+import { duplicateKeyConstraint } from "../../utils/db.utils.js";
+import { ConflictException } from "../../shared/exceptions/index.js";
+import { messages, type MessageCode } from "../../shared/messages.js";
+
+const DUPLICATE_DOCUMENTS: Record<
+  string,
+  { code: MessageCode; path: "cpf" | "cns" }
+> = {
+  patients_owner_id_cpf_unique: {
+    code: "PATIENT_CPF_ALREADY_EXISTS",
+    path: "cpf",
+  },
+  patients_owner_id_cns_unique: {
+    code: "PATIENT_CNS_ALREADY_EXISTS",
+    path: "cns",
+  },
+};
+
+const rethrowDuplicateDocument = (err: unknown): never => {
+  const constraint = duplicateKeyConstraint(err);
+  const duplicate = constraint ? DUPLICATE_DOCUMENTS[constraint] : undefined;
+
+  if (duplicate) {
+    throw new ConflictException(duplicate.code, [
+      {
+        location: "body",
+        path: duplicate.path,
+        message: messages[duplicate.code],
+      },
+    ]);
+  }
+
+  throw err;
+};
 
 const toFields = (data: PatientData) => ({
   name: data.name,
@@ -27,12 +61,16 @@ const byIdForOwner = (id: string, ownerId: string) =>
   and(eq(patients.id, id), eq(patients.ownerId, ownerId));
 
 export const save = async (ownerId: string, data: PatientData) => {
-  return single(
-    await getDb()
-      .insert(patients)
-      .values({ ownerId, ...toFields(data) })
-      .returning(),
-  );
+  try {
+    return single(
+      await getDb()
+        .insert(patients)
+        .values({ ownerId, ...toFields(data) })
+        .returning(),
+    );
+  } catch (err) {
+    return rethrowDuplicateDocument(err);
+  }
 };
 
 export const findByIdForOwner = async (
@@ -98,13 +136,17 @@ export const update = async (
   ownerId: string,
   data: PatientData,
 ) => {
-  return single(
-    await getDb()
-      .update(patients)
-      .set(toFields(data))
-      .where(byIdForOwner(id, ownerId))
-      .returning(),
-  );
+  try {
+    return single(
+      await getDb()
+        .update(patients)
+        .set(toFields(data))
+        .where(byIdForOwner(id, ownerId))
+        .returning(),
+    );
+  } catch (err) {
+    return rethrowDuplicateDocument(err);
+  }
 };
 
 export const setArchivedAt = async (
