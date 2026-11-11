@@ -70,7 +70,6 @@ docker compose --profile app up -d --build
 
 Nesse modo, o serviço `migrate` aplica as migrações (`node dist/db/migrate.js`) antes de a API subir; a API usa o Postgres do compose e roda com `NODE_ENV=production`, o que mantém os rate limits ativos. `docker compose down` para tudo; `docker compose down -v` também apaga os dados.
 
-
 ## Testes
 
 ```bash

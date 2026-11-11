@@ -70,13 +70,6 @@ export const ListAttachmentsSchema = z.object({
   query: ListAttachmentsQuerySchema,
 });
 
-export const GetThumbnailsSchema = z.object({
-  params: patientParamsSchema,
-  body: z.object({
-    attachmentIds: attachmentIdsSchema.nonempty("Informe ao menos um anexo"),
-  }),
-});
-
 export const AttachmentParamsSchema = z.object({
   params: attachmentParamsSchema,
 });

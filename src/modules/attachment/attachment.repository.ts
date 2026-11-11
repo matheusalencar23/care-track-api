@@ -20,7 +20,6 @@ export interface NewAttachment {
   size: number;
   sha256: string;
   storageKey: string;
-  thumbnailStorageKey: string | null;
 }
 
 export const save = async (
@@ -52,43 +51,6 @@ export const findByIdForPatient = async (
       ),
     )
     .limit(1);
-
-  return attachment ?? null;
-};
-
-export const findManyForPatient = async (
-  ids: string[],
-  ownerId: string,
-  patientId: string,
-) => {
-  return await getDb()
-    .select()
-    .from(attachments)
-    .where(
-      and(
-        inArray(attachments.id, ids),
-        eq(attachments.ownerId, ownerId),
-        eq(attachments.patientId, patientId),
-      ),
-    );
-};
-
-export const setThumbnail = async (
-  id: string,
-  ownerId: string,
-  thumbnailStorageKey: string,
-) => {
-  const [attachment] = await getDb()
-    .update(attachments)
-    .set({ thumbnailStorageKey })
-    .where(
-      and(
-        eq(attachments.id, id),
-        eq(attachments.ownerId, ownerId),
-        isNull(attachments.thumbnailStorageKey),
-      ),
-    )
-    .returning({ id: attachments.id });
 
   return attachment ?? null;
 };

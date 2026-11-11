@@ -58,9 +58,6 @@ export const messages = {
 
   ATTACHMENT_TOO_LARGE: "O arquivo excede o tamanho máximo permitido.",
 
-  ATTACHMENT_THUMBNAIL_NOT_SUPPORTED:
-    "Só imagens têm miniatura. Vídeos e PDFs são exibidos com um ícone.",
-
   ATTACHMENT_CONSENT_REQUIRED:
     "Enviar ou abrir fotos e vídeos exige um consentimento de uso de imagem ativo para o paciente.",
 

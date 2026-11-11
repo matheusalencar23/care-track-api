@@ -4,14 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { ExifTool } from "exiftool-vendored";
-import sharp from "sharp";
 import request from "supertest";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 import app from "../../src/app.js";
 import { attachments } from "../../src/modules/attachment/attachment.model.js";
 import { UPLOAD_DIR } from "../../src/modules/attachment/attachment.upload.js";
-import * as storageService from "../../src/services/storage/storage.service.js";
 import { auditLogs } from "../../src/modules/audit/auditLog.model.js";
 import { records } from "../../src/modules/record/record.model.js";
 import { messages } from "../../src/shared/messages.js";
@@ -787,9 +785,9 @@ describe("Attachments", () => {
         .query({ status: "voided" })
         .expect(200);
 
-      expect(active.body.items.map((item: { id: string }) => item.id)).toEqual([
-        kept,
-      ]);
+      expect(active.body.items.map((item: { id: string }) => item.id)).toEqual(
+        [kept],
+      );
       expect(
         onlyVoided.body.items.map((item: { id: string }) => item.id),
       ).toEqual([voided]);
@@ -841,384 +839,6 @@ describe("Attachments", () => {
     });
   });
 
-  describe("thumbnails", () => {
-    const thumbnailsUrl = (patientId: string) =>
-      `${attachmentsUrl(patientId)}/thumbnails`;
-
-    const largeImage = () =>
-      sharp({
-        create: {
-          width: 800,
-          height: 400,
-          channels: 3,
-          background: { r: 200, g: 80, b: 80 },
-        },
-      })
-        .png()
-        .toBuffer();
-
-    const thumbnailKey = async (attachmentId: string) => {
-      const [row] = await testDb()
-        .select({ key: attachments.thumbnailStorageKey })
-        .from(attachments)
-        .where(eq(attachments.id, attachmentId));
-
-      return row?.key ?? null;
-    };
-
-    it("should store a resized, upright WebP thumbnail without metadata on upload", async () => {
-      const { agent } = await signedInAgent();
-      const patientId = await createPatient(agent);
-      const attachmentId = await upload(
-        agent,
-        patientId,
-        await withMetadata(await largeImage(), "png"),
-      );
-
-      const response = await agent
-        .post(thumbnailsUrl(patientId))
-        .send({ attachmentIds: [attachmentId] })
-        .expect(200);
-
-      const [item] = response.body.items;
-      expect(item).toMatchObject({ attachmentId, status: "available" });
-      expect(item.thumbnailUrl).toContain("thumbnails/");
-      expect(Date.parse(item.thumbnailUrlExpiresAt)).toBeGreaterThan(
-        Date.now(),
-      );
-
-      const file = await fetch(item.thumbnailUrl);
-      expect(file.status).toBe(200);
-      expect(file.headers.get("content-type")).toBe("image/webp");
-      expect(file.headers.get("cache-control")).toBe("no-store");
-      expect(file.headers.get("content-disposition")).toBe("inline");
-
-      const thumbnail = Buffer.from(await file.arrayBuffer());
-      const metadata = await sharp(thumbnail).metadata();
-      expect(metadata).toMatchObject({
-        format: "webp",
-        width: 160,
-        height: 320,
-      });
-      expect(metadata.exif).toBeUndefined();
-      expect(metadata.orientation).toBeUndefined();
-      expect(metadata.xmp).toBeUndefined();
-    });
-
-    it("should not enlarge a small image", async () => {
-      const { agent } = await signedInAgent();
-      const patientId = await createPatient(agent);
-      const attachmentId = await upload(agent, patientId);
-
-      const response = await agent
-        .post(thumbnailsUrl(patientId))
-        .send({ attachmentIds: [attachmentId] })
-        .expect(200);
-
-      const file = await fetch(response.body.items[0].thumbnailUrl);
-      const metadata = await sharp(
-        Buffer.from(await file.arrayBuffer()),
-      ).metadata();
-      expect(metadata).toMatchObject({ width: 2, height: 2 });
-    });
-
-    it("should report the files without thumbnail and keep the requested order", async () => {
-      const { agent } = await signedInAgent();
-      const patientId = await createPatient(agent);
-      const pdfId = await upload(agent, patientId, PDF);
-      const videoId = await upload(agent, patientId, MP4);
-      const photoId = await upload(agent, patientId, JPEG);
-
-      const response = await agent
-        .post(thumbnailsUrl(patientId))
-        .send({ attachmentIds: [pdfId, photoId, videoId] })
-        .expect(200);
-
-      expect(response.body.items).toEqual([
-        {
-          attachmentId: pdfId,
-          status: "unavailable",
-          thumbnailUrl: null,
-          thumbnailUrlExpiresAt: null,
-        },
-        expect.objectContaining({ attachmentId: photoId, status: "available" }),
-        {
-          attachmentId: videoId,
-          status: "unavailable",
-          thumbnailUrl: null,
-          thumbnailUrlExpiresAt: null,
-        },
-      ]);
-      expect(await thumbnailKey(pdfId)).toBeNull();
-      expect(await thumbnailKey(videoId)).toBeNull();
-    });
-
-    it("should audit one entry per thumbnail released", async () => {
-      const { user, agent } = await signedInAgent();
-      const patientId = await createPatient(agent);
-      const first = await upload(agent, patientId);
-      const second = await upload(agent, patientId, WEBP);
-      const pdfId = await upload(agent, patientId, PDF);
-
-      await agent
-        .post(thumbnailsUrl(patientId))
-        .send({ attachmentIds: [first, second, pdfId] })
-        .expect(200);
-
-      const logs = await findAuditLogs(
-        eq(auditLogs.action, "attachment.thumbnail"),
-      );
-      expect(logs).toHaveLength(2);
-      expect(logs).toEqual(
-        expect.arrayContaining(
-          [first, second].map((resourceId) =>
-            expect.objectContaining({
-              userId: user.id,
-              resourceType: "attachment",
-              resourceId,
-              patientId,
-            }),
-          ),
-        ),
-      );
-      expect(new Set(logs.map((log) => log.requestId)).size).toBe(1);
-    });
-
-    it("should not release thumbnails after the consent is revoked", async () => {
-      const { agent } = await signedInAgent();
-      const patientId = await createPatient(agent);
-      const photoId = await upload(agent, patientId);
-      const pdfId = await upload(agent, patientId, PDF);
-      const [consent] = (await agent.get(consentsUrl(patientId)).expect(200))
-        .body;
-      await agent
-        .post(`${consentsUrl(patientId)}/${consent.id}/revoke`)
-        .expect(200);
-
-      const response = await agent
-        .post(thumbnailsUrl(patientId))
-        .send({ attachmentIds: [photoId, pdfId] })
-        .expect(200);
-
-      expect(response.body.items).toEqual([
-        {
-          attachmentId: photoId,
-          status: "consent_required",
-          thumbnailUrl: null,
-          thumbnailUrlExpiresAt: null,
-        },
-        expect.objectContaining({ attachmentId: pdfId, status: "unavailable" }),
-      ]);
-      expect(
-        await findAuditLogs(eq(auditLogs.action, "attachment.thumbnail")),
-      ).toHaveLength(0);
-    });
-
-    it("should return 404 when an attachment belongs to another patient", async () => {
-      const { agent } = await signedInAgent();
-      const patientId = await createPatient(agent);
-      const otherPatientId = await createPatient(agent);
-      const attachmentId = await upload(agent, patientId);
-      const otherAttachmentId = await upload(agent, otherPatientId);
-
-      const response = await agent
-        .post(thumbnailsUrl(patientId))
-        .send({ attachmentIds: [attachmentId, otherAttachmentId] })
-        .expect(404);
-
-      expect(response.body).toMatchObject(code("ATTACHMENT_NOT_FOUND"));
-      expect(
-        await findAuditLogs(eq(auditLogs.action, "attachment.thumbnail")),
-      ).toHaveLength(0);
-    });
-
-    it.each([
-      ["an empty list", []],
-      ["more than 20 items", Array.from({ length: 21 }, () => randomUUID())],
-      ["repeated items", Array(2).fill("0190a3b8-6f5e-7000-8000-000000000000")],
-      ["an invalid id", ["x"]],
-    ])("should reject %s", async (_case, attachmentIds) => {
-      const { agent } = await signedInAgent();
-      const patientId = await createPatient(agent);
-
-      const response = await agent
-        .post(thumbnailsUrl(patientId))
-        .send({ attachmentIds })
-        .expect(422);
-
-      expect(response.body.errors[0]).toMatchObject({
-        location: "body",
-        path: expect.stringMatching(/^attachmentIds/),
-      });
-    });
-
-    describe("generation retry", () => {
-      const insertWithoutThumbnail = async (
-        ownerId: string,
-        patientId: string,
-        file: Buffer,
-        contentType: string,
-      ) => {
-        const dir = await mkdtemp(join(tmpdir(), "attachment-test-"));
-        const path = join(dir, "file");
-        const storageKey = `attachments/${randomUUID()}`;
-
-        try {
-          await writeFile(path, file);
-          await storageService.putObject(
-            storageKey,
-            path,
-            contentType,
-            file.length,
-          );
-        } finally {
-          await rm(dir, { recursive: true, force: true });
-        }
-
-        const result = await adminQuery(
-          `INSERT INTO attachments
-            (owner_id, patient_id, author_id, file_name, content_type, size, sha256, storage_key)
-           VALUES ($1, $2, $1, 'antiga.png', $3, $4, 'hash', $5)
-           RETURNING id`,
-          [ownerId, patientId, contentType, file.length, storageKey],
-        );
-
-        return result.rows[0].id as string;
-      };
-
-      const generateUrl = (patientId: string, attachmentId: string) =>
-        `${attachmentsUrl(patientId)}/${attachmentId}/thumbnail`;
-
-      const generateLogs = () =>
-        findAuditLogs(eq(auditLogs.action, "attachment.thumbnail_generate"));
-
-      it("should generate the missing thumbnail of an old image and release it", async () => {
-        const { user, agent } = await signedInAgent();
-        const patientId = await createPatient(agent);
-        const photoId = await insertWithoutThumbnail(
-          user.id,
-          patientId,
-          await largeImage(),
-          "image/png",
-        );
-
-        const response = await agent
-          .post(generateUrl(patientId, photoId))
-          .expect(200);
-
-        expect(response.body).toMatchObject({
-          attachmentId: photoId,
-          status: "available",
-        });
-        expect(await thumbnailKey(photoId)).toMatch(/^thumbnails\//);
-        const file = await fetch(response.body.thumbnailUrl);
-        const metadata = await sharp(
-          Buffer.from(await file.arrayBuffer()),
-        ).metadata();
-        expect(metadata).toMatchObject({ format: "webp", width: 320 });
-        expect(await generateLogs()).toEqual([
-          expect.objectContaining({
-            userId: user.id,
-            resourceType: "attachment",
-            resourceId: photoId,
-            patientId,
-          }),
-        ]);
-        expect(
-          await findAuditLogs(eq(auditLogs.action, "attachment.thumbnail")),
-        ).toHaveLength(1);
-      });
-
-      it("should not generate another thumbnail when it already exists", async () => {
-        const { agent } = await signedInAgent();
-        const patientId = await createPatient(agent);
-        const photoId = await upload(agent, patientId);
-        const key = await thumbnailKey(photoId);
-
-        const response = await agent
-          .post(generateUrl(patientId, photoId))
-          .expect(200);
-
-        expect(response.body.status).toBe("available");
-        expect(await thumbnailKey(photoId)).toBe(key);
-        expect(await generateLogs()).toHaveLength(0);
-      });
-
-      it("should answer unavailable and audit the attempt when the image is broken", async () => {
-        const { user, agent } = await signedInAgent();
-        const patientId = await createPatient(agent);
-        const brokenId = await insertWithoutThumbnail(
-          user.id,
-          patientId,
-          Buffer.from("not an image"),
-          "image/png",
-        );
-
-        const response = await agent
-          .post(generateUrl(patientId, brokenId))
-          .expect(200);
-
-        expect(response.body).toEqual({
-          attachmentId: brokenId,
-          status: "unavailable",
-          thumbnailUrl: null,
-          thumbnailUrlExpiresAt: null,
-        });
-        expect(await thumbnailKey(brokenId)).toBeNull();
-        expect(await generateLogs()).toHaveLength(1);
-      });
-
-      it("should generate without releasing the URL when there is no consent", async () => {
-        const { user, agent } = await signedInAgent();
-        const patientId = await createPatient(agent, { withConsent: false });
-        const photoId = await insertWithoutThumbnail(
-          user.id,
-          patientId,
-          PNG,
-          "image/png",
-        );
-
-        const response = await agent
-          .post(generateUrl(patientId, photoId))
-          .expect(200);
-
-        expect(response.body).toMatchObject({
-          status: "consent_required",
-          thumbnailUrl: null,
-        });
-        expect(await thumbnailKey(photoId)).not.toBeNull();
-      });
-
-      it("should refuse files that are not images", async () => {
-        const { agent } = await signedInAgent();
-        const patientId = await createPatient(agent);
-        const pdfId = await upload(agent, patientId, PDF);
-
-        const response = await agent
-          .post(generateUrl(patientId, pdfId))
-          .expect(422);
-
-        expect(response.body).toMatchObject(
-          code("ATTACHMENT_THUMBNAIL_NOT_SUPPORTED"),
-        );
-        expect(await generateLogs()).toHaveLength(0);
-      });
-
-      it("should return 404 for an attachment of another patient", async () => {
-        const { agent } = await signedInAgent();
-        const patientId = await createPatient(agent);
-        const otherPatientId = await createPatient(agent);
-        const photoId = await upload(agent, otherPatientId);
-
-        const response = await agent
-          .post(generateUrl(patientId, photoId))
-          .expect(404);
-
-        expect(response.body).toMatchObject(code("ATTACHMENT_NOT_FOUND"));
-      });
-    });
-  });
-
   describe("download", () => {
     it("should return a signed URL without personal data and audit it", async () => {
       const { user, agent } = await signedInAgent();
@@ -1261,9 +881,7 @@ describe("Attachments", () => {
       const standardFile = await fetch(standard.body.downloadUrl);
       const inlineFile = await fetch(inline.body.downloadUrl);
 
-      expect(standardFile.headers.get("content-disposition")).toBe(
-        "attachment",
-      );
+      expect(standardFile.headers.get("content-disposition")).toBe("attachment");
       expect(inlineFile.headers.get("content-disposition")).toBe("inline");
       expect(inlineFile.headers.get("content-type")).toBe("image/png");
     });
@@ -1355,20 +973,6 @@ describe("Attachments", () => {
       await other.get(downloadUrl(patientId, attachmentId)).expect(404);
       await other.get(downloadUrl(otherPatientId, attachmentId)).expect(404);
       await other.get(attachmentsUrl(patientId)).expect(404);
-      await other
-        .post(`${attachmentsUrl(patientId)}/thumbnails`)
-        .send({ attachmentIds: [attachmentId] })
-        .expect(404);
-      await other
-        .post(`${attachmentsUrl(otherPatientId)}/thumbnails`)
-        .send({ attachmentIds: [attachmentId] })
-        .expect(404);
-      await other
-        .post(`${attachmentsUrl(patientId)}/${attachmentId}/thumbnail`)
-        .expect(404);
-      await other
-        .post(`${attachmentsUrl(otherPatientId)}/${attachmentId}/thumbnail`)
-        .expect(404);
       const otherList = await other
         .get(attachmentsUrl(otherPatientId))
         .expect(200);
@@ -1482,42 +1086,6 @@ describe("Attachments", () => {
           `UPDATE attachments SET record_id = '${other.body.id}' WHERE id = '${attachmentId}'`,
         ),
       ).rejects.toThrow("attachments_record_fk");
-    });
-
-    it("should only let the thumbnail be set once, and only on images", async () => {
-      const { user, agent } = await signedInAgent();
-      const patientId = await createPatient(agent);
-      const photoId = await upload(agent, patientId);
-      const pdfId = await upload(agent, patientId, PDF);
-      const [pending] = (
-        await adminQuery(
-          `INSERT INTO attachments
-            (owner_id, patient_id, author_id, file_name, content_type, size, sha256, storage_key)
-           VALUES ($1, $2, $1, 'a.png', 'image/png', 1, 'hash', 'attachments/pending')
-           RETURNING id`,
-          [user.id, patientId],
-        )
-      ).rows;
-
-      await asApp(
-        user.id,
-        `UPDATE attachments SET thumbnail_storage_key = 'thumbnails/new' WHERE id = '${pending.id}'`,
-      );
-      await expect(
-        adminQuery(
-          `UPDATE attachments SET thumbnail_storage_key = 'thumbnails/other' WHERE id = '${photoId}'`,
-        ),
-      ).rejects.toThrow("The thumbnail of an attachment cannot change");
-      await expect(
-        adminQuery(
-          `UPDATE attachments SET thumbnail_storage_key = NULL WHERE id = '${photoId}'`,
-        ),
-      ).rejects.toThrow("The thumbnail of an attachment cannot change");
-      await expect(
-        adminQuery(
-          `UPDATE attachments SET thumbnail_storage_key = 'thumbnails/pdf' WHERE id = '${pdfId}'`,
-        ),
-      ).rejects.toThrow("attachments_thumbnail_only_images");
     });
 
     it("should ignore server-controlled fields on insert", async () => {

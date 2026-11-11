@@ -141,6 +141,20 @@
       "when": 1794417615716,
       "tag": "0019_attachment_thumbnails_security",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794419092403,
+      "tag": "0020_remove_attachment_thumbnails_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794419092941,
+      "tag": "0021_remove_attachment_thumbnails",
+      "breakpoints": true
     }
   ]
 }
