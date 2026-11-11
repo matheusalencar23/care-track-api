@@ -1,4 +1,6 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import {
   GetObjectCommand,
   PutObjectCommand,
@@ -64,4 +66,16 @@ export const createDownloadUrl = async (
     }),
     { expiresIn: DOWNLOAD_URL_TTL_SECONDS },
   );
+};
+
+export const downloadObject = async (key: string, filePath: string) => {
+  const response = await client.send(
+    new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }),
+  );
+
+  if (!(response.Body instanceof Readable)) {
+    throw new Error("The storage returned an empty object");
+  }
+
+  await pipeline(response.Body, createWriteStream(filePath, { mode: 0o600 }));
 };

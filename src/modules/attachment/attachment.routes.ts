@@ -2,8 +2,10 @@ import { Router } from "express";
 
 import * as attachmentController from "./attachment.controller.js";
 import {
+  AttachmentParamsSchema,
   DownloadAttachmentSchema,
   CreateAttachmentSchema,
+  GetThumbnailsSchema,
   ListAttachmentsSchema,
   PatientParamsSchema,
 } from "./attachment.schema.js";
@@ -25,6 +27,18 @@ routes.get(
   "/",
   schemaValidationMiddleware(ListAttachmentsSchema),
   attachmentController.list,
+);
+
+routes.post(
+  "/thumbnails",
+  schemaValidationMiddleware(GetThumbnailsSchema),
+  attachmentController.thumbnails,
+);
+
+routes.post(
+  "/:attachmentId/thumbnail",
+  schemaValidationMiddleware(AttachmentParamsSchema),
+  attachmentController.generateThumbnail,
 );
 
 routes.get(

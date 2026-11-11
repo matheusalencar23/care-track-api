@@ -74,6 +74,56 @@ export const list = async (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
+export const thumbnails = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  AppLogger.info("Getting attachment thumbnails...");
+
+  try {
+    if (!req.user) {
+      throw new UnauthorizedException("UNAUTHORIZED");
+    }
+
+    const result = await attachmentService.getThumbnails(
+      req.user.id,
+      req.params["id"] as string,
+      req.body.attachmentIds,
+    );
+
+    return res.json(result);
+  } catch (err) {
+    AppLogger.error("Error getting attachment thumbnails");
+    return next(err);
+  }
+};
+
+export const generateThumbnail = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  AppLogger.info("Generating attachment thumbnail...");
+
+  try {
+    if (!req.user) {
+      throw new UnauthorizedException("UNAUTHORIZED");
+    }
+
+    const thumbnail = await attachmentService.generateThumbnail(
+      req.user.id,
+      req.params["id"] as string,
+      req.params["attachmentId"] as string,
+    );
+
+    return res.json(thumbnail);
+  } catch (err) {
+    AppLogger.error("Error generating attachment thumbnail");
+    return next(err);
+  }
+};
+
 export const download = async (
   req: Request,
   res: Response,

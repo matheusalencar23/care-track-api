@@ -25,6 +25,8 @@ export const AUDIT_ACTIONS = [
   "attachment.link",
   "attachment.download",
   "attachment.list",
+  "attachment.thumbnail",
+  "attachment.thumbnail_generate",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

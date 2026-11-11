@@ -5,6 +5,7 @@ import * as consentService from "../consent/consent.service.js";
 import * as auditLogService from "../audit/auditLog.service.js";
 import * as storageService from "../../services/storage/storage.service.js";
 import * as attachmentFile from "./attachment.file.js";
+import * as attachmentThumbnail from "./attachment.thumbnail.js";
 import type { Attachment } from "./attachment.model.js";
 import type {
   AttachmentDisposition,
@@ -111,6 +112,10 @@ export const createAttachment = async (
   const storageKey = `attachments/${randomUUID()}`;
 
   await storageService.putObject(storageKey, file.path, contentType, size);
+  const thumbnailStorageKey = await attachmentThumbnail.storeThumbnail(
+    file.path,
+    contentType,
+  );
 
   const attachment = await withOwnerScope(ownerId, async () => {
     await patientService.assertPatientIsActive(ownerId, patientId);
@@ -122,6 +127,7 @@ export const createAttachment = async (
       size,
       sha256,
       storageKey,
+      thumbnailStorageKey,
     });
 
     await auditLogService.record({
@@ -203,6 +209,138 @@ export const getDownload = async (
     downloadUrl,
     downloadUrlExpiresAt: expiresAt(storageService.DOWNLOAD_URL_TTL_SECONDS),
   };
+};
+
+export type ThumbnailStatus = "available" | "consent_required" | "unavailable";
+
+export const getThumbnails = async (
+  ownerId: string,
+  patientId: string,
+  attachmentIds: string[],
+) => {
+  const thumbnails = await withOwnerScope(ownerId, async () => {
+    await patientService.assertPatientExists(ownerId, patientId);
+
+    const found = await attachmentRepository.findManyForPatient(
+      attachmentIds,
+      ownerId,
+      patientId,
+    );
+
+    if (found.length !== attachmentIds.length) {
+      throw new NotFoundException("ATTACHMENT_NOT_FOUND");
+    }
+
+    const hasConsent =
+      found.some((attachment) => attachment.thumbnailStorageKey) &&
+      (await consentService.hasActiveConsent(
+        ownerId,
+        patientId,
+        "image_capture",
+      ));
+
+    const byId = new Map(
+      found.map((attachment) => [attachment.id, attachment]),
+    );
+    const thumbnails = attachmentIds.map((id) => {
+      const key = byId.get(id)?.thumbnailStorageKey ?? null;
+      const status: ThumbnailStatus = !key
+        ? "unavailable"
+        : hasConsent
+          ? "available"
+          : "consent_required";
+
+      return { attachmentId: id, status, key };
+    });
+
+    await auditLogService.recordMany(
+      thumbnails
+        .filter((thumbnail) => thumbnail.status === "available")
+        .map((thumbnail) => ({
+          userId: ownerId,
+          action: "attachment.thumbnail" as const,
+          resourceType: "attachment" as const,
+          resourceId: thumbnail.attachmentId,
+          patientId,
+        })),
+    );
+
+    return thumbnails;
+  });
+
+  const urlExpiresAt = expiresAt(storageService.DOWNLOAD_URL_TTL_SECONDS);
+
+  return {
+    items: await Promise.all(
+      thumbnails.map(async ({ attachmentId, status, key }) => {
+        const thumbnailUrl =
+          status === "available" && key
+            ? await storageService.createDownloadUrl(key, "inline")
+            : null;
+
+        return {
+          attachmentId,
+          status,
+          thumbnailUrl,
+          thumbnailUrlExpiresAt: thumbnailUrl ? urlExpiresAt : null,
+        };
+      }),
+    ),
+  };
+};
+
+export const generateThumbnail = async (
+  ownerId: string,
+  patientId: string,
+  attachmentId: string,
+) => {
+  const attachment = await withOwnerScope(ownerId, async () => {
+    await patientService.assertPatientExists(ownerId, patientId);
+    return await findOrThrow(ownerId, patientId, attachmentId);
+  });
+
+  if (!attachmentFile.isImage(attachment.contentType)) {
+    throw new UnprocessableEntityException(
+      "ATTACHMENT_THUMBNAIL_NOT_SUPPORTED",
+      [],
+    );
+  }
+
+  if (!attachment.thumbnailStorageKey) {
+    const thumbnailStorageKey =
+      await attachmentThumbnail.storeThumbnailFromStorage(
+        attachment.storageKey,
+        attachment.contentType,
+        attachment.id,
+      );
+
+    await withOwnerScope(ownerId, async () => {
+      if (thumbnailStorageKey) {
+        await attachmentRepository.setThumbnail(
+          attachment.id,
+          ownerId,
+          thumbnailStorageKey,
+        );
+      }
+
+      await auditLogService.record({
+        userId: ownerId,
+        action: "attachment.thumbnail_generate",
+        resourceType: "attachment",
+        resourceId: attachment.id,
+        patientId,
+      });
+    });
+
+    AppLogger.info("Thumbnail generation requested", {
+      attachmentId: attachment.id,
+      generated: thumbnailStorageKey !== null,
+    });
+  }
+
+  const { items } = await getThumbnails(ownerId, patientId, [attachment.id]);
+
+  return items[0];
 };
 
 export const linkToRecord = async (

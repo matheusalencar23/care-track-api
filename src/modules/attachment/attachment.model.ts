@@ -38,11 +38,15 @@ export const attachments = pgTable(
     contentType: text().notNull(),
     size: bigint({ mode: "number" }).notNull(),
     storageKey: text().notNull(),
+    thumbnailStorageKey: text(),
     sha256: text().notNull(),
     createdAt: createdAt(),
   },
   (table) => [
     unique("attachments_storage_key_unique").on(table.storageKey),
+    unique("attachments_thumbnail_storage_key_unique").on(
+      table.thumbnailStorageKey,
+    ),
     foreignKey({
       name: "attachments_patient_fk",
       columns: [table.ownerId, table.patientId],
@@ -63,6 +67,10 @@ export const attachments = pgTable(
       )
       .where(sql`${table.recordId} is not null`),
     check("attachments_size_positive", sql`${table.size} > 0`),
+    check(
+      "attachments_thumbnail_only_images",
+      sql`${table.thumbnailStorageKey} is null or ${table.contentType} like 'image/%'`,
+    ),
     check(
       "attachments_file_name_not_blank",
       sql`btrim(${table.fileName}) <> ''`,

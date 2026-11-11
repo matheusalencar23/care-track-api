@@ -127,6 +127,20 @@
       "when": 1794415543749,
       "tag": "0017_attachment_list",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794417614954,
+      "tag": "0018_attachment_thumbnails",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794417615716,
+      "tag": "0019_attachment_thumbnails_security",
+      "breakpoints": true
     }
   ]
 }
