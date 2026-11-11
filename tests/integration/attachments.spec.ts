@@ -734,6 +734,27 @@ describe("Attachments", () => {
       expect(inlineFile.headers.get("content-type")).toBe("image/png");
     });
 
+    it("should tell the browser not to cache the file", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+      const attachmentId = await upload(agent, patientId);
+
+      const standard = await agent
+        .get(downloadUrl(patientId, attachmentId))
+        .expect(200);
+      const inline = await agent
+        .get(downloadUrl(patientId, attachmentId))
+        .query({ disposition: "inline" })
+        .expect(200);
+
+      const standardFile = await fetch(standard.body.downloadUrl);
+      const inlineFile = await fetch(inline.body.downloadUrl);
+
+      expect(standardFile.status).toBe(200);
+      expect(standardFile.headers.get("cache-control")).toBe("no-store");
+      expect(inlineFile.headers.get("cache-control")).toBe("no-store");
+    });
+
     it("should reject an unknown disposition", async () => {
       const { agent } = await signedInAgent();
       const patientId = await createPatient(agent);

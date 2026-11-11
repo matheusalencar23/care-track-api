@@ -77,7 +77,7 @@ export const attachmentOperations: ApiOperation[] = [
     tag: "Anexos",
     summary: "Gera a URL de download de um anexo",
     description:
-      "A URL é assinada e de curta duração. Cada chamada é registrada na auditoria. Fotos e vídeos só são liberados com um consentimento `image_capture` ativo e sem `needsRenewal`; PDFs não dependem dele. Por padrão, a URL força o download (`Content-Disposition: attachment`); com `disposition=inline`, o navegador exibe o arquivo, para a pré-visualização de PDFs no front.",
+      "A URL é assinada e de curta duração. Cada chamada é registrada na auditoria. Fotos e vídeos só são liberados com um consentimento `image_capture` ativo e sem `needsRenewal`; PDFs não dependem dele. Por padrão, a URL força o download (`Content-Disposition: attachment`); com `disposition=inline`, o navegador exibe o arquivo, para a pré-visualização de PDFs no front. O arquivo sempre volta com `Cache-Control: no-store`, para o navegador não gravá-lo no cache em disco.",
     authenticated: true,
     request: DownloadAttachmentSchema,
     responses: {

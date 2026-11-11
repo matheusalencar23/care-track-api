@@ -60,6 +60,7 @@ export const createDownloadUrl = async (
       Bucket: S3_BUCKET,
       Key: key,
       ResponseContentDisposition: disposition,
+      ResponseCacheControl: "no-store",
     }),
     { expiresIn: DOWNLOAD_URL_TTL_SECONDS },
   );
