@@ -52,6 +52,24 @@ export const AttachmentDownloadQuerySchema = z.object({
     .default("attachment"),
 });
 
+export const ListAttachmentsQuerySchema = z.object({
+  status: z.enum(["active", "voided"], "Status inválido").default("active"),
+  cursor: z.uuid("Cursor inválido").optional(),
+  limit: z.coerce
+    .number("Limite inválido")
+    .int("Limite inválido")
+    .min(1, "O limite deve ser entre 1 e 100")
+    .max(100, "O limite deve ser entre 1 e 100")
+    .default(20),
+});
+
+export type ListAttachmentsQuery = z.infer<typeof ListAttachmentsQuerySchema>;
+
+export const ListAttachmentsSchema = z.object({
+  params: patientParamsSchema,
+  query: ListAttachmentsQuerySchema,
+});
+
 export const AttachmentParamsSchema = z.object({
   params: attachmentParamsSchema,
 });

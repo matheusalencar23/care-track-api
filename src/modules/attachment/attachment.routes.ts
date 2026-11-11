@@ -4,6 +4,7 @@ import * as attachmentController from "./attachment.controller.js";
 import {
   DownloadAttachmentSchema,
   CreateAttachmentSchema,
+  ListAttachmentsSchema,
   PatientParamsSchema,
 } from "./attachment.schema.js";
 import { uploadMiddleware } from "./attachment.upload.js";
@@ -18,6 +19,12 @@ routes.post(
   uploadMiddleware,
   schemaValidationMiddleware(CreateAttachmentSchema),
   attachmentController.create,
+);
+
+routes.get(
+  "/",
+  schemaValidationMiddleware(ListAttachmentsSchema),
+  attachmentController.list,
 );
 
 routes.get(

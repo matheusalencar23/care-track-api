@@ -2,7 +2,10 @@ import { NextFunction, Request, Response } from "express";
 import { AppLogger } from "../../shared/appLogger.js";
 import * as attachmentService from "./attachment.service.js";
 import { UnauthorizedException } from "../../shared/exceptions/index.js";
-import { AttachmentDownloadQuerySchema } from "./attachment.schema.js";
+import {
+  AttachmentDownloadQuerySchema,
+  ListAttachmentsQuerySchema,
+} from "./attachment.schema.js";
 
 export const assertCanUpload = async (
   req: Request,
@@ -46,6 +49,27 @@ export const create = async (
     return res.status(201).json(attachment);
   } catch (err) {
     AppLogger.error("Error uploading attachment");
+    return next(err);
+  }
+};
+
+export const list = async (req: Request, res: Response, next: NextFunction) => {
+  AppLogger.info("Listing attachments...");
+
+  try {
+    if (!req.user) {
+      throw new UnauthorizedException("UNAUTHORIZED");
+    }
+
+    const page = await attachmentService.listAttachments(
+      req.user.id,
+      req.params["id"] as string,
+      ListAttachmentsQuerySchema.parse(req.query),
+    );
+
+    return res.json(page);
+  } catch (err) {
+    AppLogger.error("Error listing attachments");
     return next(err);
   }
 };

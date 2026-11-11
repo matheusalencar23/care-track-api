@@ -120,6 +120,13 @@
       "when": 1794236639476,
       "tag": "0016_attachments_api_upload_security",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794415543749,
+      "tag": "0017_attachment_list",
+      "breakpoints": true
     }
   ]
 }

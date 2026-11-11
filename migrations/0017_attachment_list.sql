@@ -1,0 +1,2 @@
+ALTER TYPE "public"."audit_action" ADD VALUE 'attachment.list';--> statement-breakpoint
+CREATE INDEX "attachments_patient_list_index" ON "attachments" USING btree ("owner_id","patient_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST) WHERE "attachments"."record_id" is not null;

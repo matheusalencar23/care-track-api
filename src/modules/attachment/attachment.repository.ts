@@ -1,6 +1,18 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import { getDb, single } from "../../db/db.js";
 import { attachments } from "./attachment.model.js";
+import { records } from "../record/record.model.js";
+import type { ListAttachmentsQuery } from "./attachment.schema.js";
 
 export interface NewAttachment {
   fileName: string;
@@ -74,4 +86,49 @@ export const listForRecords = async (ownerId: string, recordIds: string[]) => {
       ),
     )
     .orderBy(asc(attachments.createdAt), asc(attachments.id));
+};
+
+export const listForPatient = async (
+  ownerId: string,
+  patientId: string,
+  query: ListAttachmentsQuery,
+) => {
+  const conditions = [
+    eq(attachments.ownerId, ownerId),
+    eq(attachments.patientId, patientId),
+    isNotNull(attachments.recordId),
+    query.status === "voided"
+      ? isNotNull(records.voidedAt)
+      : isNull(records.voidedAt),
+  ];
+
+  if (query.cursor) {
+    conditions.push(
+      sql`(${attachments.createdAt}, ${attachments.id}) < (
+        select cursor.created_at, cursor.id from ${attachments} as cursor
+        where cursor.id = ${query.cursor}
+          and cursor.owner_id = ${ownerId}
+          and cursor.patient_id = ${patientId}
+      )`,
+    );
+  }
+
+  const rows = await getDb()
+    .select(getTableColumns(attachments))
+    .from(attachments)
+    .innerJoin(
+      records,
+      and(
+        eq(records.ownerId, attachments.ownerId),
+        eq(records.id, attachments.recordId),
+      ),
+    )
+    .where(and(...conditions))
+    .orderBy(desc(attachments.createdAt), desc(attachments.id))
+    .limit(query.limit + 1);
+
+  return {
+    items: rows.slice(0, query.limit),
+    hasMore: rows.length > query.limit,
+  };
 };

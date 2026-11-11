@@ -687,6 +687,158 @@ describe("Attachments", () => {
     });
   });
 
+  describe("list", () => {
+    const createRecord = async (
+      agent: Agent,
+      patientId: string,
+      attachmentIds: string[],
+    ) => {
+      const response = await agent
+        .post(recordsUrl(patientId))
+        .send({ attachmentIds })
+        .expect(201);
+
+      return response.body.id as string;
+    };
+
+    it("should list only the attachments of records, newest first, and audit it", async () => {
+      const { user, agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+      const first = await upload(agent, patientId);
+      const second = (
+        await send(agent, patientId, PDF, "laudo.pdf").expect(201)
+      ).body.id as string;
+      const recordId = await createRecord(agent, patientId, [first, second]);
+      await upload(agent, patientId);
+
+      const response = await agent.get(attachmentsUrl(patientId)).expect(200);
+
+      expect(response.body.nextCursor).toBeNull();
+      expect(response.body.items).toEqual([
+        expect.objectContaining({
+          id: second,
+          recordId,
+          patientId,
+          contentType: "application/pdf",
+          fileName: "laudo.pdf",
+        }),
+        expect.objectContaining({ id: first, recordId }),
+      ]);
+      expect(response.body.items[0]).not.toHaveProperty("storageKey");
+      expect(response.body.items[0]).not.toHaveProperty("downloadUrl");
+
+      const logs = await findAuditLogs(eq(auditLogs.userId, user.id));
+      expect(logs).toContainEqual(
+        expect.objectContaining({
+          action: "attachment.list",
+          resourceType: "attachment",
+          resourceId: null,
+          patientId,
+        }),
+      );
+    });
+
+    it("should page with the cursor", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+      const ids = [
+        await upload(agent, patientId),
+        await upload(agent, patientId),
+        await upload(agent, patientId),
+      ];
+      await createRecord(agent, patientId, ids);
+
+      const firstPage = await agent
+        .get(attachmentsUrl(patientId))
+        .query({ limit: 2 })
+        .expect(200);
+      const secondPage = await agent
+        .get(attachmentsUrl(patientId))
+        .query({ limit: 2, cursor: firstPage.body.nextCursor })
+        .expect(200);
+
+      expect(
+        firstPage.body.items.map((item: { id: string }) => item.id),
+      ).toEqual([ids[2], ids[1]]);
+      expect(firstPage.body.nextCursor).toBe(ids[1]);
+      expect(
+        secondPage.body.items.map((item: { id: string }) => item.id),
+      ).toEqual([ids[0]]);
+      expect(secondPage.body.nextCursor).toBeNull();
+    });
+
+    it("should only list the attachments of voided records with status=voided", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+      const kept = await upload(agent, patientId);
+      await createRecord(agent, patientId, [kept]);
+      const voided = await upload(agent, patientId);
+      const voidedRecord = await createRecord(agent, patientId, [voided]);
+      await agent
+        .post(`${recordsUrl(patientId)}/${voidedRecord}/void`)
+        .send({ reason: "wrong_patient" })
+        .expect(200);
+
+      const active = await agent.get(attachmentsUrl(patientId)).expect(200);
+      const onlyVoided = await agent
+        .get(attachmentsUrl(patientId))
+        .query({ status: "voided" })
+        .expect(200);
+
+      expect(active.body.items.map((item: { id: string }) => item.id)).toEqual(
+        [kept],
+      );
+      expect(
+        onlyVoided.body.items.map((item: { id: string }) => item.id),
+      ).toEqual([voided]);
+    });
+
+    it("should list the attachments of an archived patient", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+      const attachmentId = await upload(agent, patientId);
+      await createRecord(agent, patientId, [attachmentId]);
+      await agent.post(`${API}/patients/${patientId}/archive`).expect(200);
+
+      const response = await agent.get(attachmentsUrl(patientId)).expect(200);
+
+      expect(response.body.items).toHaveLength(1);
+    });
+
+    it("should return an empty page for a patient without attachments", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+
+      const response = await agent.get(attachmentsUrl(patientId)).expect(200);
+
+      expect(response.body).toEqual({ items: [], nextCursor: null });
+    });
+
+    it("should return 404 for an unknown patient", async () => {
+      const { agent } = await signedInAgent();
+
+      const response = await agent
+        .get(attachmentsUrl(randomUUID()))
+        .expect(404);
+
+      expect(response.body.code).toBe("PATIENT_NOT_FOUND");
+    });
+
+    it("should reject an invalid query", async () => {
+      const { agent } = await signedInAgent();
+      const patientId = await createPatient(agent);
+
+      const response = await agent
+        .get(attachmentsUrl(patientId))
+        .query({ limit: 0, cursor: "x", status: "all" })
+        .expect(422);
+
+      expect(
+        response.body.errors.map((error: { path: string }) => error.path),
+      ).toEqual(expect.arrayContaining(["limit", "cursor", "status"]));
+    });
+  });
+
   describe("download", () => {
     it("should return a signed URL without personal data and audit it", async () => {
       const { user, agent } = await signedInAgent();
@@ -810,12 +962,21 @@ describe("Attachments", () => {
       const { agent } = await signedInAgent();
       const patientId = await createPatient(agent);
       const attachmentId = await upload(agent, patientId);
+      await agent
+        .post(recordsUrl(patientId))
+        .send({ attachmentIds: [attachmentId] })
+        .expect(201);
       const { agent: other } = await otherNurse();
       const otherPatientId = await createPatient(other);
 
       await send(other, patientId).expect(404);
       await other.get(downloadUrl(patientId, attachmentId)).expect(404);
       await other.get(downloadUrl(otherPatientId, attachmentId)).expect(404);
+      await other.get(attachmentsUrl(patientId)).expect(404);
+      const otherList = await other
+        .get(attachmentsUrl(otherPatientId))
+        .expect(200);
+      expect(otherList.body.items).toEqual([]);
       await other
         .post(recordsUrl(otherPatientId))
         .send({ attachmentIds: [attachmentId] })

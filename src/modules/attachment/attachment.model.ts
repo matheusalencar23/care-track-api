@@ -54,6 +54,14 @@ export const attachments = pgTable(
       foreignColumns: [records.ownerId, records.patientId, records.id],
     }),
     index("attachments_record_index").on(table.ownerId, table.recordId),
+    index("attachments_patient_list_index")
+      .on(
+        table.ownerId,
+        table.patientId,
+        table.createdAt.desc(),
+        table.id.desc(),
+      )
+      .where(sql`${table.recordId} is not null`),
     check("attachments_size_positive", sql`${table.size} > 0`),
     check(
       "attachments_file_name_not_blank",

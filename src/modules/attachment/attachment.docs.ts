@@ -8,6 +8,7 @@ import {
 import { ATTACHMENT_CONTENT_TYPES } from "./attachment.model.js";
 import {
   DownloadAttachmentSchema,
+  ListAttachmentsSchema,
   PatientParamsSchema,
 } from "./attachment.schema.js";
 
@@ -26,6 +27,17 @@ const attachmentFields = z.object({
 });
 
 export const AttachmentSchema = component("Attachment", attachmentFields);
+
+const AttachmentPageSchema = component(
+  "AttachmentPage",
+  z.object({
+    items: z.array(AttachmentSchema),
+    nextCursor: z
+      .uuid()
+      .nullable()
+      .meta({ description: "Valor do `cursor` da próxima página; nulo no fim" }),
+  }),
+);
 
 const AttachmentDownloadSchema = component(
   "AttachmentDownload",
@@ -69,6 +81,20 @@ export const attachmentOperations: ApiOperation[] = [
       422: validationErrorResponse(
         "Arquivo ausente, nome inválido, tipo não permitido ou arquivo corrompido.",
       ),
+    },
+  },
+  {
+    method: "get",
+    path: "/patients/:id/attachments",
+    tag: "Anexos",
+    summary: "Lista os anexos do paciente",
+    description:
+      "Só os anexos já ligados a registros, do mais novo para o mais antigo (pelo horário do envio), com paginação por cursor: envie o `nextCursor` da resposta como `cursor` para buscar a próxima página. Como na linha do tempo, os anexos de registros anulados só aparecem com `status=voided`. Devolve só os metadados, sem URL: para abrir o arquivo, use a rota de download. A consulta é registrada na auditoria.",
+    authenticated: true,
+    request: ListAttachmentsSchema,
+    responses: {
+      200: { description: "Página de anexos.", schema: AttachmentPageSchema },
+      404: errorResponse("Paciente não encontrado."),
     },
   },
   {

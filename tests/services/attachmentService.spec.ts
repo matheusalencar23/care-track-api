@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createAttachment,
   getDownload,
+  listAttachments,
 } from "../../src/modules/attachment/attachment.service.js";
 import * as auditLogService from "../../src/modules/audit/auditLog.service.js";
 import * as attachmentRepository from "../../src/modules/attachment/attachment.repository.js";
@@ -14,6 +15,7 @@ import { messages } from "../../src/shared/messages.js";
 vi.mock("../../src/modules/attachment/attachment.repository.js", () => ({
   save: vi.fn(),
   findByIdForPatient: vi.fn(),
+  listForPatient: vi.fn(),
 }));
 
 vi.mock("../../src/modules/attachment/attachment.file.js", async () => {
@@ -31,6 +33,7 @@ vi.mock("../../src/modules/attachment/attachment.file.js", async () => {
 
 vi.mock("../../src/modules/patient/patient.service.js", () => ({
   assertPatientIsActive: vi.fn(),
+  assertPatientExists: vi.fn(),
 }));
 
 vi.mock("../../src/modules/consent/consent.service.js", () => ({
@@ -186,5 +189,64 @@ describe("attachmentService.getDownload", () => {
       "attachments/key",
       "inline",
     );
+  });
+});
+
+describe("attachmentService.listAttachments", () => {
+  const query = { status: "active" as const, limit: 2 };
+  const stored = (id: string) =>
+    ({
+      id,
+      patientId: "patient-1",
+      recordId: "record-1",
+      fileName: "foto.png",
+      contentType: "image/png",
+      size: 10,
+      sha256: "hash",
+      storageKey: "attachments/key",
+      createdAt: new Date("2026-11-11T10:00:00Z"),
+    }) as unknown as Attachment;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should return the page without the storage key and audit the list", async () => {
+    vi.mocked(attachmentRepository.listForPatient).mockResolvedValue({
+      items: [stored("attachment-2"), stored("attachment-1")],
+      hasMore: true,
+    });
+
+    const page = await listAttachments("owner-1", "patient-1", query);
+
+    expect(attachmentRepository.listForPatient).toHaveBeenCalledWith(
+      "owner-1",
+      "patient-1",
+      query,
+    );
+    expect(page.nextCursor).toBe("attachment-1");
+    expect(page.items.map((item) => item.id)).toEqual([
+      "attachment-2",
+      "attachment-1",
+    ]);
+    expect(page.items[0]).not.toHaveProperty("storageKey");
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      userId: "owner-1",
+      action: "attachment.list",
+      resourceType: "attachment",
+      patientId: "patient-1",
+    });
+    expect(storageService.createDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it("should return no cursor on the last page", async () => {
+    vi.mocked(attachmentRepository.listForPatient).mockResolvedValue({
+      items: [stored("attachment-1")],
+      hasMore: false,
+    });
+
+    const page = await listAttachments("owner-1", "patient-1", query);
+
+    expect(page.nextCursor).toBeNull();
   });
 });

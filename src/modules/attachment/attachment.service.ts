@@ -6,7 +6,10 @@ import * as auditLogService from "../audit/auditLog.service.js";
 import * as storageService from "../../services/storage/storage.service.js";
 import * as attachmentFile from "./attachment.file.js";
 import type { Attachment } from "./attachment.model.js";
-import type { AttachmentDisposition } from "./attachment.schema.js";
+import type {
+  AttachmentDisposition,
+  ListAttachmentsQuery,
+} from "./attachment.schema.js";
 import {
   ConflictException,
   NotFoundException,
@@ -137,6 +140,36 @@ export const createAttachment = async (
   });
 
   return toAttachmentResponse(attachment);
+};
+
+export const listAttachments = async (
+  ownerId: string,
+  patientId: string,
+  query: ListAttachmentsQuery,
+) => {
+  const { items, hasMore } = await withOwnerScope(ownerId, async () => {
+    await patientService.assertPatientExists(ownerId, patientId);
+
+    const page = await attachmentRepository.listForPatient(
+      ownerId,
+      patientId,
+      query,
+    );
+
+    await auditLogService.record({
+      userId: ownerId,
+      action: "attachment.list",
+      resourceType: "attachment",
+      patientId,
+    });
+
+    return page;
+  });
+
+  return {
+    items: items.map(toAttachmentResponse),
+    nextCursor: hasMore ? (items.at(-1)?.id ?? null) : null,
+  };
 };
 
 export const getDownload = async (
